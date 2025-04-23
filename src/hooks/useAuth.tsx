@@ -37,10 +37,10 @@ export const AuthProvider = ({children}: { children: ReactNode }) => {
       const userDetails = {role: 'trainer'};
       setUser(userDetails);
       localStorage.setItem('user', JSON.stringify(userDetails)); // Store user data.
-      return true;
     } else if (username === 'admin' && password === 'password') {
       const userDetails = {role: 'admin'};
       setUser(userDetails);
+      localStorage.setItem('user', JSON.stringify(userDetails));
       localStorage.setItem('user', JSON.stringify(userDetails)); // Store user data.
       return true;
     }
@@ -66,4 +66,3 @@ export const useAuth = () => {
   }
   return context;
 };
-
