@@ -27,12 +27,10 @@ import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Dia
 import {Label} from "@/components/ui/label";
 import {Textarea} from "@/components/ui/textarea";
 import {Trainer, getTrainers} from "@/services/trainer"; // Import Trainer type and getTrainers function
-import {User} from "@/services/user"; // Import User type and getUsers function
-import {getUsers} from "@/services/user";
+import {User, getUsers} from "@/services/user"; // Import User type and getUsers function
 import {Plus, Edit, Trash2, FileText, History, UserPlus} from "lucide-react";
 import {cn} from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
-import {Calendar} from "@/components/ui/calendar";
 
 interface Invoice {
   id: string;
@@ -72,6 +70,12 @@ const AdminPage = () => {
   const [openPaymentHistoryDialog, setOpenPaymentHistoryDialog] = useState(false);
   const [selectedUserPaymentHistory, setSelectedUserPaymentHistory] = useState<User | null>(null);
   const [paymentDate, setPaymentDate] = useState('');
+
+  // User Management State
+  const [openUserDialog, setOpenUserDialog] = useState(false);
+  const [userName, setUserName] = useState('');
+  const [userEmail, setUserEmail] = useState('');
+  const [userPhoneNumber, setUserPhoneNumber] = useState('');
 
   useEffect(() => {
     if (!user || user.role !== 'admin') {
@@ -206,6 +210,27 @@ const AdminPage = () => {
     return invoices.find(invoice => invoice.userId === userId && !invoice.paid);
   };
 
+  // User Management Handlers
+  const handleOpenUserDialog = () => {
+    setUserName('');
+    setUserEmail('');
+    setUserPhoneNumber('');
+    setOpenUserDialog(true);
+  };
+
+  const handleSaveUser = () => {
+    // TODO: Implement saving logic, including API calls
+    const newUser = {
+      id: Math.random().toString(), // Generate a random ID
+      name: userName,
+      email: userEmail,
+      role: 'user', // Always 'user'
+      phoneNumber: userPhoneNumber,
+    };
+    setUsers([...users, newUser]);
+    setOpenUserDialog(false);
+  };
+
   return (
     <div className="container mx-auto py-10">
       <h1 className="text-3xl font-bold mb-5 text-primary">Admin Dashboard</h1>
@@ -218,11 +243,18 @@ const AdminPage = () => {
           <CardDescription>List of all users in the system.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <div className="flex justify-end">
+            <Button onClick={handleOpenUserDialog}>
+              <UserPlus className="mr-2 h-4 w-4"/>
+              Add User
+            </Button>
+          </div>
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Email</TableHead>
+                <TableHead>Phone Number</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -235,6 +267,7 @@ const AdminPage = () => {
                   <TableRow key={user.id} className={rowClassName}>
                     <TableCell>{user.name}</TableCell>
                     <TableCell>{user.email}</TableCell>
+                    <TableCell>{user.phoneNumber}</TableCell>
                     <TableCell className="text-right">
                       <Button variant="outline" size="sm" onClick={() => handleOpenInvoiceDialog(user)}>
                         <FileText className="mr-2 h-4 w-4"/>
@@ -539,6 +572,53 @@ const AdminPage = () => {
               </TableBody>
             </Table>
           </CardContent>
+        </DialogContent>
+      </Dialog>
+
+      {/* User Dialog */}
+      <Dialog open={openUserDialog} onOpenChange={setOpenUserDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add User</DialogTitle>
+            <DialogDescription>
+              Create a new user. Users are always assigned the 'user' role.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="name" className="text-right">
+                Name
+              </Label>
+              <Input id="name" value={userName} onChange={(e) => setUserName(e.target.value)} className="col-span-3"/>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="email" className="text-right">
+                Email
+              </Label>
+              <Input
+                id="userEmail"
+                type="email"
+                value={userEmail}
+                onChange={(e) => setUserEmail(e.target.value)}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="phoneNumber" className="text-right">
+                Phone Number
+              </Label>
+              <Input
+                id="userPhoneNumber"
+                type="tel"
+                value={userPhoneNumber}
+                onChange={(e) => setUserPhoneNumber(e.target.value)}
+                className="col-span-3"
+              />
+            </div>
+          </div>
+          <CardFooter>
+            <Button onClick={handleSaveUser}>Save User</Button>
+          </CardFooter>
         </DialogContent>
       </Dialog>
     </div>
