@@ -26,6 +26,10 @@ export interface Trainer {
    * The trainer's email
    */
   email: string;
+    /**
+   * The trainer's phone number
+   */
+  phoneNumber?: string;
   /**
    * The trainer's role
    */
@@ -48,6 +52,7 @@ export async function getTrainers(): Promise<Trainer[]> {
       experience: 5,
       schedule: 'Monday, Wednesday, Friday',
       email: 'john.doe@example.com',
+      phoneNumber: '123-456-7890',
       role: 'trainer'
     },
     {
@@ -57,6 +62,7 @@ export async function getTrainers(): Promise<Trainer[]> {
       experience: 3,
       schedule: 'Tuesday, Thursday, Saturday',
       email: 'jane.smith@example.com',
+      phoneNumber: '987-654-3210',
       role: 'admin'
     },
   ];
@@ -78,6 +84,7 @@ export async function getTrainer(trainerId: string): Promise<Trainer | undefined
     experience: 5,
     schedule: 'Monday, Wednesday, Friday',
     email: 'john.doe@example.com',
+    phoneNumber: '123-456-7890',
     role: 'trainer'
   };
 }

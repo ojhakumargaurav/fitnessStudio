@@ -61,6 +61,7 @@ const AdminPage = () => {
   const [trainerExperience, setTrainerExperience] = useState('');
   const [trainerSchedule, setTrainerSchedule] = useState('');
   const [trainerEmail, setTrainerEmail] = useState('');
+  const [trainerPhoneNumber, setTrainerPhoneNumber] = useState('');
   const [trainerRole, setTrainerRole] = useState('trainer');
 
   // Invoice Management State
@@ -71,12 +72,6 @@ const AdminPage = () => {
   const [openPaymentHistoryDialog, setOpenPaymentHistoryDialog] = useState(false);
   const [selectedUserPaymentHistory, setSelectedUserPaymentHistory] = useState<User | null>(null);
   const [paymentDate, setPaymentDate] = useState('');
-
-  // User Management State
-  const [openUserDialog, setOpenUserDialog] = useState(false);
-  const [userName, setUserName] = useState('');
-  const [userEmail, setUserEmail] = useState('');
-  const [userRole, setUserRole] = useState('user');
 
   useEffect(() => {
     if (!user || user.role !== 'admin') {
@@ -116,6 +111,7 @@ const AdminPage = () => {
     setTrainerExperience('');
     setTrainerSchedule('');
     setTrainerEmail('');
+    setTrainerPhoneNumber('');
     setTrainerRole('trainer'); // Default to trainer
     setOpenTrainerDialog(true);
   };
@@ -127,6 +123,7 @@ const AdminPage = () => {
     setTrainerExperience(trainer.experience.toString());
     setTrainerSchedule(trainer.schedule);
     setTrainerEmail(trainer.email);
+    setTrainerPhoneNumber(trainer.phoneNumber || '');
     setTrainerRole(trainer.role || 'trainer'); // Ensure role is defined
     setOpenTrainerDialog(true);
   };
@@ -143,6 +140,7 @@ const AdminPage = () => {
           experience: parseInt(trainerExperience),
           schedule: trainerSchedule,
           email: trainerEmail,
+          phoneNumber: trainerPhoneNumber,
           role: trainerRole
         } : t
       );
@@ -156,6 +154,7 @@ const AdminPage = () => {
         experience: parseInt(trainerExperience),
         schedule: trainerSchedule,
         email: trainerEmail,
+        phoneNumber: trainerPhoneNumber,
         role: trainerRole
       };
       setTrainers([...trainers, newTrainer]);
@@ -207,26 +206,6 @@ const AdminPage = () => {
     return invoices.find(invoice => invoice.userId === userId && !invoice.paid);
   };
 
-  // User Management Handlers
-  const handleOpenUserDialog = () => {
-    setOpenUserDialog(true);
-    setUserName('');
-    setUserEmail('');
-    setUserRole('user');
-  };
-
-  const handleSaveUser = () => {
-    // TODO: Implement saving logic, including API calls
-    const newUser = {
-      id: Math.random().toString(), // Generate a random ID
-      name: userName,
-      email: userEmail,
-      role: userRole
-    };
-    setUsers([...users, newUser]);
-    setOpenUserDialog(false);
-  };
-
   return (
     <div className="container mx-auto py-10">
       <h1 className="text-3xl font-bold mb-5 text-primary">Admin Dashboard</h1>
@@ -239,18 +218,11 @@ const AdminPage = () => {
           <CardDescription>List of all users in the system.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/*<div className="flex justify-end">
-            <Button onClick={handleOpenUserDialog}>
-              <UserPlus className="mr-2 h-4 w-4"/>
-              Add User
-            </Button>
-          </div>*/}
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Email</TableHead>
-                <TableHead>Role</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -263,7 +235,6 @@ const AdminPage = () => {
                   <TableRow key={user.id} className={rowClassName}>
                     <TableCell>{user.name}</TableCell>
                     <TableCell>{user.email}</TableCell>
-                    <TableCell>{user.role}</TableCell>
                     <TableCell className="text-right">
                       <Button variant="outline" size="sm" onClick={() => handleOpenInvoiceDialog(user)}>
                         <FileText className="mr-2 h-4 w-4"/>
@@ -303,7 +274,7 @@ const AdminPage = () => {
                 <TableHead>Experience</TableHead>
                 <TableHead>Schedule</TableHead>
                 <TableHead>Email</TableHead>
-                <TableHead>Role</TableHead>
+                <TableHead>Phone Number</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -315,7 +286,7 @@ const AdminPage = () => {
                   <TableCell>{trainer.experience} years</TableCell>
                   <TableCell>{trainer.schedule}</TableCell>
                   <TableCell>{trainer.email}</TableCell>
-                  <TableCell>{trainer.role}</TableCell>
+                  <TableCell>{trainer.phoneNumber}</TableCell>
                   <TableCell className="text-right">
                     <Button variant="secondary" size="sm" onClick={() => handleEditTrainer(trainer)}>
                       <Edit className="mr-2 h-4 w-4"/>
@@ -474,18 +445,16 @@ const AdminPage = () => {
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="role" className="text-right">
-                Role
+              <Label htmlFor="phoneNumber" className="text-right">
+                Phone Number
               </Label>
-              <select
-                id="trainerRole"
-                value={trainerRole}
-                onChange={(e) => setTrainerRole(e.target.value)}
-                className="col-span-3 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <option value="trainer">Trainer</option>
-                <option value="admin">Admin</option>
-              </select>
+              <Input
+                id="trainerPhoneNumber"
+                type="tel"
+                value={trainerPhoneNumber}
+                onChange={(e) => setTrainerPhoneNumber(e.target.value)}
+                className="col-span-3"
+              />
             </div>
           </div>
           <CardFooter>
@@ -570,56 +539,6 @@ const AdminPage = () => {
               </TableBody>
             </Table>
           </CardContent>
-        </DialogContent>
-      </Dialog>
-
-      {/* User Dialog */}
-      <Dialog open={openUserDialog} onOpenChange={setOpenUserDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Add User</DialogTitle>
-            <DialogDescription>
-              Create a new user.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="name" className="text-right">
-                Name
-              </Label>
-              <Input id="userName" value={userName} onChange={(e) => setUserName(e.target.value)} className="col-span-3"/>
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="email" className="text-right">
-                Email
-              </Label>
-              <Input
-                id="userEmail"
-                type="email"
-                value={userEmail}
-                onChange={(e) => setUserEmail(e.target.value)}
-                className="col-span-3"
-              />
-            </div>
-            {/*<div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="role" className="text-right">
-                Role
-              </Label>
-              <select
-                id="userRole"
-                value={userRole}
-                onChange={(e) => setUserRole(e.target.value)}
-                className="col-span-3 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <option value="user">User</option>
-                <option value="trainer">Trainer</option>
-                <option value="admin">Admin</option>
-              </select>
-            </div>*/}
-          </div>
-          <CardFooter>
-            <Button onClick={handleSaveUser}>Save User</Button>
-          </CardFooter>
         </DialogContent>
       </Dialog>
     </div>
