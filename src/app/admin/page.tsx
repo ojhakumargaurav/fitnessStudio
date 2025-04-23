@@ -28,9 +28,10 @@ import {Label} from "@/components/ui/label";
 import {Textarea} from "@/components/ui/textarea";
 import {Trainer, getTrainers} from "@/services/trainer"; // Import Trainer type and getTrainers function
 import {User, getUsers} from "@/services/user"; // Import User type and getUsers function
-import {Plus, Edit, Trash2, FileText, History, UserPlus} from "lucide-react";
+import {Plus, Edit, Trash2, FileText, History, UserPlus, ImagePlus} from "lucide-react";
 import {cn} from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
+import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
 
 interface Invoice {
   id: string;
@@ -39,6 +40,12 @@ interface Invoice {
   dueDate: string;
   paid: boolean;
   paymentDate?: string; // Optional payment date
+}
+
+interface CarouselImage {
+  id: string;
+  url: string;
+  position: number;
 }
 
 const AdminPage = () => {
@@ -76,6 +83,16 @@ const AdminPage = () => {
   const [userName, setUserName] = useState('');
   const [userEmail, setUserEmail] = useState('');
   const [userPhoneNumber, setUserPhoneNumber] = useState('');
+
+  // Carousel Image Management State
+  const [carouselImages, setCarouselImages] = useState<CarouselImage[]>([
+    {id: '1', url: 'https://picsum.photos/800/400', position: 1},
+    {id: '2', url: 'https://picsum.photos/800/401', position: 2},
+    {id: '3', url: 'https://picsum.photos/800/402', position: 3},
+  ]);
+  const [openImageDialog, setOpenImageDialog] = useState(false);
+  const [newImageUrl, setNewImageUrl] = useState('');
+
 
   useEffect(() => {
     if (!user || user.role !== 'admin') {
@@ -230,6 +247,43 @@ const AdminPage = () => {
     setUsers([...users, newUser]);
     setOpenUserDialog(false);
   };
+
+  // Carousel Image Management Handlers
+  const handleOpenImageDialog = () => {
+    setNewImageUrl('');
+    setOpenImageDialog(true);
+  };
+
+  const handleAddImage = () => {
+    const newImage: CarouselImage = {
+      id: Math.random().toString(),
+      url: newImageUrl,
+      position: carouselImages.length + 1,
+    };
+    setCarouselImages([...carouselImages, newImage]);
+    setOpenImageDialog(false);
+  };
+
+  const handleDeleteImage = (imageId: string) => {
+    const updatedImages = carouselImages.filter(img => img.id !== imageId);
+    // Re-calculate positions after deletion
+    const reorderedImages = updatedImages.map((img, index) => ({...img, position: index + 1}));
+    setCarouselImages(reorderedImages);
+  };
+
+  const handleOnDragEnd = (result: any) => {
+    if (!result.destination) return;
+
+    const items = Array.from(carouselImages);
+    const [reorderedItem] = items.splice(result.source.index, 1);
+    items.splice(result.destination.index, 0, reorderedItem);
+
+    // Update positions based on new order
+    const updatedImages = items.map((img, index) => ({...img, position: index + 1}));
+
+    setCarouselImages(updatedImages);
+  };
+
 
   return (
     <div className="container mx-auto py-10">
@@ -415,6 +469,61 @@ const AdminPage = () => {
         </CardContent>
       </Card>
 
+       {/* Carousel Image Management */}
+      <Card className="mb-5">
+        <CardHeader>
+          <CardTitle>Carousel Images</CardTitle>
+          <CardDescription>Manage images displayed in the homepage carousel.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex justify-end">
+            <Button onClick={handleOpenImageDialog}>
+              <ImagePlus className="mr-2 h-4 w-4"/>
+              Add Image
+            </Button>
+          </div>
+
+          <DragDropContext onDragEnd={handleOnDragEnd}>
+            <Droppable droppableId="carouselImages">
+              {(provided) => (
+                <Table {...provided.droppableProps} ref={provided.innerRef}>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Position</TableHead>
+                      <TableHead>Image URL</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {carouselImages.map((image, index) => (
+                      <Draggable key={image.id} draggableId={image.id} index={index}>
+                        {(provided) => (
+                          <TableRow
+                            ref={provided.innerRef}
+                            {...provided.draggableProps}
+                            {...provided.dragHandleProps}
+                          >
+                            <TableCell>{image.position}</TableCell>
+                            <TableCell>{image.url}</TableCell>
+                            <TableCell className="text-right">
+                              <Button variant="destructive" size="sm" onClick={() => handleDeleteImage(image.id)}>
+                                <Trash2 className="mr-2 h-4 w-4"/>
+                                Delete
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </Draggable>
+                    ))}
+                    {provided.placeholder}
+                  </TableBody>
+                </Table>
+              )}
+            </Droppable>
+          </DragDropContext>
+        </CardContent>
+      </Card>
+
       {/* Trainer Dialog */}
       <Dialog open={openTrainerDialog} onOpenChange={setOpenTrainerDialog}>
         <DialogContent>
@@ -488,6 +597,20 @@ const AdminPage = () => {
                 onChange={(e) => setTrainerPhoneNumber(e.target.value)}
                 className="col-span-3"
               />
+            </div>
+             <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="role" className="text-right">
+                Role
+              </Label>
+              <Select value={trainerRole} onValueChange={(value) => setTrainerRole(value)}>
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="Select role" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="trainer">Trainer</SelectItem>
+                  <SelectItem value="admin">Admin</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <CardFooter>
@@ -618,6 +741,35 @@ const AdminPage = () => {
           </div>
           <CardFooter>
             <Button onClick={handleSaveUser}>Save User</Button>
+          </CardFooter>
+        </DialogContent>
+      </Dialog>
+
+       {/* Image Dialog */}
+      <Dialog open={openImageDialog} onOpenChange={setOpenImageDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Image to Carousel</DialogTitle>
+            <DialogDescription>
+              Enter the URL of the image to add to the homepage carousel.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="imageUrl" className="text-right">
+                Image URL
+              </Label>
+              <Input
+                id="imageUrl"
+                type="url"
+                value={newImageUrl}
+                onChange={(e) => setNewImageUrl(e.target.value)}
+                className="col-span-3"
+              />
+            </div>
+          </div>
+          <CardFooter>
+            <Button onClick={handleAddImage}>Add Image</Button>
           </CardFooter>
         </DialogContent>
       </Dialog>
