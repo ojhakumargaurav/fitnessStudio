@@ -29,10 +29,10 @@ import {Textarea} from "@/components/ui/textarea";
 import {Trainer, getTrainers} from "@/services/trainer"; // Import Trainer type and getTrainers function
 import {User} from "@/services/user"; // Import User type and getUsers function
 import {getUsers} from "@/services/user";
-import {Plus, Edit, Trash2, FileText} from "lucide-react";
+import {Plus, Edit, Trash2, FileText, History} from "lucide-react";
 import {cn} from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
-
+import {Calendar} from "@/components/ui/calendar";
 
 interface Invoice {
   id: string;
@@ -40,6 +40,7 @@ interface Invoice {
   amount: number;
   dueDate: string;
   paid: boolean;
+  paymentDate?: string; // Optional payment date
 }
 
 const AdminPage = () => {
@@ -48,7 +49,7 @@ const AdminPage = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [trainers, setTrainers] = useState<Trainer[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([
-    {id: '1', userId: '1', amount: 100, dueDate: '2024-07-10', paid: true},
+    {id: '1', userId: '1', amount: 100, dueDate: '2024-07-10', paid: true, paymentDate: '2024-07-09'},
     {id: '2', userId: '2', amount: 150, dueDate: '2024-07-15', paid: false},
   ]);
 
@@ -65,6 +66,9 @@ const AdminPage = () => {
   const [selectedUserForInvoice, setSelectedUserForInvoice] = useState<User | null>(null);
   const [invoiceAmount, setInvoiceAmount] = useState('');
   const [invoiceDueDate, setInvoiceDueDate] = useState('');
+  const [openPaymentHistoryDialog, setOpenPaymentHistoryDialog] = useState(false);
+  const [selectedUserPaymentHistory, setSelectedUserPaymentHistory] = useState<User | null>(null);
+
 
   useEffect(() => {
     if (!user || user.role !== 'admin') {
@@ -171,11 +175,20 @@ const AdminPage = () => {
     setOpenInvoiceDialog(false);
   };
 
-  const handleMarkAsPaid = (invoiceId: string) => {
+  const handleMarkAsPaid = (invoiceId: string, paymentDate: string) => {
     const updatedInvoices = invoices.map(inv =>
-      inv.id === invoiceId ? {...inv, paid: true} : inv
+      inv.id === invoiceId ? {...inv, paid: true, paymentDate: paymentDate} : inv
     );
     setInvoices(updatedInvoices);
+  };
+
+  const handleOpenPaymentHistory = (user: User) => {
+    setSelectedUserPaymentHistory(user);
+    setOpenPaymentHistoryDialog(true);
+  };
+
+  const getUnpaidInvoice = (userId: string): Invoice | undefined => {
+    return invoices.find(invoice => invoice.userId === userId && !invoice.paid);
   };
 
   return (
@@ -200,19 +213,28 @@ const AdminPage = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {users.map((user) => (
-                <TableRow key={user.id}>
-                  <TableCell>{user.name}</TableCell>
-                  <TableCell>{user.email}</TableCell>
-                  <TableCell>{user.role}</TableCell>
-                  <TableCell className="text-right">
-                    <Button variant="outline" size="sm" onClick={() => handleOpenInvoiceDialog(user)}>
-                      <FileText className="mr-2 h-4 w-4"/>
-                      Generate Invoice
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {users.map((user) => {
+                const unpaidInvoice = getUnpaidInvoice(user.id);
+                const rowClassName = unpaidInvoice ? "text-destructive" : "";
+
+                return (
+                  <TableRow key={user.id} className={rowClassName}>
+                    <TableCell>{user.name}</TableCell>
+                    <TableCell>{user.email}</TableCell>
+                    <TableCell>{user.role}</TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="outline" size="sm" onClick={() => handleOpenInvoiceDialog(user)}>
+                        <FileText className="mr-2 h-4 w-4"/>
+                        Generate Invoice
+                      </Button>
+                      <Button variant="secondary" size="sm" onClick={() => handleOpenPaymentHistory(user)}>
+                        <History className="mr-2 h-4 w-4"/>
+                        Payment History
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </CardContent>
@@ -279,6 +301,7 @@ const AdminPage = () => {
                 <TableHead>Amount</TableHead>
                 <TableHead>Due Date</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead>Payment Date</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -295,11 +318,41 @@ const AdminPage = () => {
                       <Badge variant="secondary">Unpaid</Badge>
                     )}
                   </TableCell>
+                  <TableCell>{invoice.paymentDate || "N/A"}</TableCell>
                   <TableCell className="text-right">
                     {!invoice.paid && (
-                      <Button variant="outline" size="sm" onClick={() => handleMarkAsPaid(invoice.id)}>
-                        Mark as Paid
-                      </Button>
+                      <Dialog>
+                        <DialogTrigger asChild>
+                          <Button variant="outline" size="sm">
+                            Mark as Paid
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle>Mark Invoice as Paid</DialogTitle>
+                            <DialogDescription>
+                              Select the payment date for this invoice.
+                            </DialogDescription>
+                          </DialogHeader>
+                          <div className="grid gap-4 py-4">
+                            <div className="grid grid-cols-4 items-center gap-4">
+                              <Label htmlFor="paymentDate" className="text-right">
+                                Payment Date
+                              </Label>
+                              <Input
+                                id="paymentDate"
+                                type="date"
+                                onChange={(e) => {
+                                  handleMarkAsPaid(invoice.id, e.target.value);
+                                  // Force update to re-render the component
+                                  setInvoices([...invoices]);
+                                }}
+                                className="col-span-3"
+                              />
+                            </div>
+                          </div>
+                        </DialogContent>
+                      </Dialog>
                     )}
                   </TableCell>
                 </TableRow>
@@ -404,6 +457,44 @@ const AdminPage = () => {
           <CardFooter>
             <Button onClick={handleGenerateInvoice}>Generate Invoice</Button>
           </CardFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Payment History Dialog */}
+      <Dialog open={openPaymentHistoryDialog} onOpenChange={setOpenPaymentHistoryDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Payment History</DialogTitle>
+            <DialogDescription>
+              Payment history for {selectedUserPaymentHistory?.name}.
+            </DialogDescription>
+          </DialogHeader>
+          <CardContent className="space-y-4">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Amount</TableHead>
+                  <TableHead>Due Date</TableHead>
+                  <TableHead>Payment Date</TableHead>
+                  <TableHead>Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {invoices
+                  .filter((invoice) => invoice.userId === selectedUserPaymentHistory?.id && invoice.paid)
+                  .map((invoice) => (
+                    <TableRow key={invoice.id}>
+                      <TableCell>${invoice.amount}</TableCell>
+                      <TableCell>{invoice.dueDate}</TableCell>
+                      <TableCell>{invoice.paymentDate}</TableCell>
+                      <TableCell>
+                        <Badge variant="default">Paid</Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+              </TableBody>
+            </Table>
+          </CardContent>
         </DialogContent>
       </Dialog>
     </div>
