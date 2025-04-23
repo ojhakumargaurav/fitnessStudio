@@ -32,6 +32,7 @@ import {Plus, Edit, Trash2, FileText, History, UserPlus, ImagePlus} from "lucide
 import {cn} from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
+import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@/components/ui/select"; //Import Select components
 
 interface Invoice {
   id: string;
