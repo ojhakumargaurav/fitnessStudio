@@ -9,6 +9,7 @@ import {Card, CardContent, CardHeader, CardTitle} from '@/components/ui/card';
 import {useToast} from '@/hooks/use-toast';
 import {cn} from '@/lib/utils';
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '@/components/ui/select';
+import {useAuth} from '@/hooks/useAuth'; // Import useAuth hook
 
 const ClassesPage = () => {
   const [classes, setClasses] = useState<Class[]>([]);
@@ -16,6 +17,7 @@ const ClassesPage = () => {
   const [filteredClasses, setFilteredClasses] = useState<Class[]>([]);
   const [categoryFilter, setCategoryFilter] = useState<string>('All');
   const {toast} = useToast();
+  const {user} = useAuth(); // Use the useAuth hook
 
   useEffect(() => {
     const fetchClasses = async () => {
@@ -85,6 +87,10 @@ const ClassesPage = () => {
     setSelectedDate(date);
   };
 
+  if (!user) {
+    return <div className="container mx-auto py-10">Please log in to view classes.</div>;
+  }
+
   return (
     <div className="container mx-auto py-10">
       <h1 className="text-3xl font-bold mb-5 text-primary">Available Classes</h1>
@@ -142,16 +148,18 @@ const ClassesPage = () => {
                     <p>Category: {cls.category}</p>
                     <p>Time: {cls.startTime} - {cls.endTime}</p>
                     <div className="flex justify-end mt-4">
-                      {cls.availableSlots > 0 ? (
+                      {cls.availableSlots > 0 && user.role === 'user' ? (
                         <Button onClick={() => handleBookClass(cls.id)}>Book Class</Button>
                       ) : (
                         <Button variant="destructive" disabled>
                           Class Full
                         </Button>
                       )}
-                      <Button variant="outline" onClick={() => handleCancelClass(cls.id)} className="ml-2">
-                        Cancel Booking
-                      </Button>
+                      {user.role === 'user' && (
+                        <Button variant="outline" onClick={() => handleCancelClass(cls.id)} className="ml-2">
+                          Cancel Booking
+                        </Button>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
