@@ -89,9 +89,9 @@ const ClassesPage = () => {
     <div className="container mx-auto py-10">
       <h1 className="text-3xl font-bold mb-5 text-primary">Available Classes</h1>
 
-      <div className="flex flex-col md:flex-row gap-4">
+      <div className="flex flex-col gap-4">
         {/* Calendar */}
-        <Card className="w-full md:w-1/3">
+        <Card className="w-full">
           <CardHeader>
             <CardTitle>Select Date</CardTitle>
           </CardHeader>
@@ -101,15 +101,15 @@ const ClassesPage = () => {
         </Card>
 
         {/* Class List */}
-        <div className="w-full md:w-2/3">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-2xl font-semibold text-foreground">
+        <div className="w-full">
+          <div className="flex flex-col sm:flex-row justify-between items-center mb-4">
+            <h2 className="text-2xl font-semibold text-foreground mb-2 sm:mb-0">
               {selectedDate
                 ? `Classes for ${selectedDate.toLocaleDateString()}`
                 : 'Select a date to view classes'}
             </h2>
             <Select onValueChange={(value) => setCategoryFilter(value)}>
-              <SelectTrigger className="w-[180px]">
+              <SelectTrigger className="w-full sm:w-[180px]">
                 <SelectValue placeholder="Filter by category" />
               </SelectTrigger>
               <SelectContent>

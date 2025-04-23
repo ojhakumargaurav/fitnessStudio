@@ -11,7 +11,7 @@ export const Navbar = () => {
       <span className="font-bold text-lg text-primary cursor-pointer" onClick={() => router.push('/')}>
         Fitness Hub
       </span>
-      <div>
+      <div className="space-x-2">
         <Button variant="ghost" onClick={() => router.push('/classes')}>
           Classes
         </Button>
