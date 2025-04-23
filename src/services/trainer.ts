@@ -22,6 +22,14 @@ export interface Trainer {
    * The trainer's schedule
    */
   schedule: string;
+    /**
+   * The trainer's email
+   */
+  email: string;
+  /**
+   * The trainer's role
+   */
+  role: string;
 }
 
 /**
@@ -38,14 +46,18 @@ export async function getTrainers(): Promise<Trainer[]> {
       name: 'John Doe',
       specialization: 'Strength Training',
       experience: 5,
-      schedule: 'Monday, Wednesday, Friday'
+      schedule: 'Monday, Wednesday, Friday',
+      email: 'john.doe@example.com',
+      role: 'trainer'
     },
     {
       id: '2',
       name: 'Jane Smith',
       specialization: 'Yoga',
       experience: 3,
-      schedule: 'Tuesday, Thursday, Saturday'
+      schedule: 'Tuesday, Thursday, Saturday',
+      email: 'jane.smith@example.com',
+      role: 'admin'
     },
   ];
 }
@@ -64,6 +76,8 @@ export async function getTrainer(trainerId: string): Promise<Trainer | undefined
     name: 'John Doe',
     specialization: 'Strength Training',
     experience: 5,
-    schedule: 'Monday, Wednesday, Friday'
+    schedule: 'Monday, Wednesday, Friday',
+    email: 'john.doe@example.com',
+    role: 'trainer'
   };
 }

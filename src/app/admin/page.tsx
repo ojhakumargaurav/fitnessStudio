@@ -60,6 +60,8 @@ const AdminPage = () => {
   const [trainerSpecialization, setTrainerSpecialization] = useState('');
   const [trainerExperience, setTrainerExperience] = useState('');
   const [trainerSchedule, setTrainerSchedule] = useState('');
+  const [trainerEmail, setTrainerEmail] = useState('');
+  const [trainerRole, setTrainerRole] = useState('trainer');
 
   // Invoice Management State
   const [openInvoiceDialog, setOpenInvoiceDialog] = useState(false);
@@ -113,6 +115,8 @@ const AdminPage = () => {
     setTrainerSpecialization('');
     setTrainerExperience('');
     setTrainerSchedule('');
+    setTrainerEmail('');
+    setTrainerRole('trainer'); // Default to trainer
     setOpenTrainerDialog(true);
   };
 
@@ -122,6 +126,8 @@ const AdminPage = () => {
     setTrainerSpecialization(trainer.specialization);
     setTrainerExperience(trainer.experience.toString());
     setTrainerSchedule(trainer.schedule);
+    setTrainerEmail(trainer.email);
+    setTrainerRole(trainer.role || 'trainer'); // Ensure role is defined
     setOpenTrainerDialog(true);
   };
 
@@ -135,7 +141,9 @@ const AdminPage = () => {
           name: trainerName,
           specialization: trainerSpecialization,
           experience: parseInt(trainerExperience),
-          schedule: trainerSchedule
+          schedule: trainerSchedule,
+          email: trainerEmail,
+          role: trainerRole
         } : t
       );
       setTrainers(updatedTrainers);
@@ -146,7 +154,9 @@ const AdminPage = () => {
         name: trainerName,
         specialization: trainerSpecialization,
         experience: parseInt(trainerExperience),
-        schedule: trainerSchedule
+        schedule: trainerSchedule,
+        email: trainerEmail,
+        role: trainerRole
       };
       setTrainers([...trainers, newTrainer]);
     }
@@ -229,12 +239,12 @@ const AdminPage = () => {
           <CardDescription>List of all users in the system.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex justify-end">
+          {/*<div className="flex justify-end">
             <Button onClick={handleOpenUserDialog}>
               <UserPlus className="mr-2 h-4 w-4"/>
               Add User
             </Button>
-          </div>
+          </div>*/}
           <Table>
             <TableHeader>
               <TableRow>
@@ -292,6 +302,8 @@ const AdminPage = () => {
                 <TableHead>Specialization</TableHead>
                 <TableHead>Experience</TableHead>
                 <TableHead>Schedule</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Role</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -302,6 +314,8 @@ const AdminPage = () => {
                   <TableCell>{trainer.specialization}</TableCell>
                   <TableCell>{trainer.experience} years</TableCell>
                   <TableCell>{trainer.schedule}</TableCell>
+                  <TableCell>{trainer.email}</TableCell>
+                  <TableCell>{trainer.role}</TableCell>
                   <TableCell className="text-right">
                     <Button variant="secondary" size="sm" onClick={() => handleEditTrainer(trainer)}>
                       <Edit className="mr-2 h-4 w-4"/>
@@ -447,6 +461,32 @@ const AdminPage = () => {
                 className="col-span-3"
               />
             </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="email" className="text-right">
+                Email
+              </Label>
+              <Input
+                id="trainerEmail"
+                type="email"
+                value={trainerEmail}
+                onChange={(e) => setTrainerEmail(e.target.value)}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="role" className="text-right">
+                Role
+              </Label>
+              <select
+                id="trainerRole"
+                value={trainerRole}
+                onChange={(e) => setTrainerRole(e.target.value)}
+                className="col-span-3 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <option value="trainer">Trainer</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
           </div>
           <CardFooter>
             <Button onClick={handleSaveTrainer}>Save Trainer</Button>
@@ -561,7 +601,7 @@ const AdminPage = () => {
                 className="col-span-3"
               />
             </div>
-            <div className="grid grid-cols-4 items-center gap-4">
+            {/*<div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="role" className="text-right">
                 Role
               </Label>
@@ -575,7 +615,7 @@ const AdminPage = () => {
                 <option value="trainer">Trainer</option>
                 <option value="admin">Admin</option>
               </select>
-            </div>
+            </div>*/}
           </div>
           <CardFooter>
             <Button onClick={handleSaveUser}>Save User</Button>
