@@ -29,7 +29,7 @@ import {Textarea} from "@/components/ui/textarea";
 import {Trainer, getTrainers} from "@/services/trainer"; // Import Trainer type and getTrainers function
 import {User} from "@/services/user"; // Import User type and getUsers function
 import {getUsers} from "@/services/user";
-import {Plus, Edit, Trash2, FileText, History} from "lucide-react";
+import {Plus, Edit, Trash2, FileText, History, UserPlus} from "lucide-react";
 import {cn} from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import {Calendar} from "@/components/ui/calendar";
@@ -70,6 +70,11 @@ const AdminPage = () => {
   const [selectedUserPaymentHistory, setSelectedUserPaymentHistory] = useState<User | null>(null);
   const [paymentDate, setPaymentDate] = useState('');
 
+  // User Management State
+  const [openUserDialog, setOpenUserDialog] = useState(false);
+  const [userName, setUserName] = useState('');
+  const [userEmail, setUserEmail] = useState('');
+  const [userRole, setUserRole] = useState('user');
 
   useEffect(() => {
     if (!user || user.role !== 'admin') {
@@ -176,9 +181,9 @@ const AdminPage = () => {
     setOpenInvoiceDialog(false);
   };
 
-  const handleMarkAsPaid = (invoiceId: string) => {
+  const handleMarkAsPaid = (invoiceId: string, paymentDateValue: string) => {
     const updatedInvoices = invoices.map(inv =>
-      inv.id === invoiceId ? {...inv, paid: true, paymentDate: paymentDate} : inv
+      inv.id === invoiceId ? {...inv, paid: true, paymentDate: paymentDateValue} : inv
     );
     setInvoices(updatedInvoices);
   };
@@ -190,6 +195,26 @@ const AdminPage = () => {
 
   const getUnpaidInvoice = (userId: string): Invoice | undefined => {
     return invoices.find(invoice => invoice.userId === userId && !invoice.paid);
+  };
+
+  // User Management Handlers
+  const handleOpenUserDialog = () => {
+    setOpenUserDialog(true);
+    setUserName('');
+    setUserEmail('');
+    setUserRole('user');
+  };
+
+  const handleSaveUser = () => {
+    // TODO: Implement saving logic, including API calls
+    const newUser = {
+      id: Math.random().toString(), // Generate a random ID
+      name: userName,
+      email: userEmail,
+      role: userRole
+    };
+    setUsers([...users, newUser]);
+    setOpenUserDialog(false);
   };
 
   return (
@@ -204,6 +229,12 @@ const AdminPage = () => {
           <CardDescription>List of all users in the system.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <div className="flex justify-end">
+            <Button onClick={handleOpenUserDialog}>
+              <UserPlus className="mr-2 h-4 w-4"/>
+              Add User
+            </Button>
+          </div>
           <Table>
             <TableHeader>
               <TableRow>
@@ -352,7 +383,7 @@ const AdminPage = () => {
                           </div>
                           <CardFooter>
                             <Button onClick={() => {
-                              handleMarkAsPaid(invoice.id);
+                              handleMarkAsPaid(invoice.id, paymentDate);
                             }}>Mark as Paid</Button>
                           </CardFooter>
                         </DialogContent>
@@ -499,6 +530,56 @@ const AdminPage = () => {
               </TableBody>
             </Table>
           </CardContent>
+        </DialogContent>
+      </Dialog>
+
+      {/* User Dialog */}
+      <Dialog open={openUserDialog} onOpenChange={setOpenUserDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add User</DialogTitle>
+            <DialogDescription>
+              Create a new user.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="name" className="text-right">
+                Name
+              </Label>
+              <Input id="userName" value={userName} onChange={(e) => setUserName(e.target.value)} className="col-span-3"/>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="email" className="text-right">
+                Email
+              </Label>
+              <Input
+                id="userEmail"
+                type="email"
+                value={userEmail}
+                onChange={(e) => setUserEmail(e.target.value)}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="role" className="text-right">
+                Role
+              </Label>
+              <select
+                id="userRole"
+                value={userRole}
+                onChange={(e) => setUserRole(e.target.value)}
+                className="col-span-3 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <option value="user">User</option>
+                <option value="trainer">Trainer</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+          </div>
+          <CardFooter>
+            <Button onClick={handleSaveUser}>Save User</Button>
+          </CardFooter>
         </DialogContent>
       </Dialog>
     </div>
