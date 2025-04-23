@@ -68,6 +68,7 @@ const AdminPage = () => {
   const [invoiceDueDate, setInvoiceDueDate] = useState('');
   const [openPaymentHistoryDialog, setOpenPaymentHistoryDialog] = useState(false);
   const [selectedUserPaymentHistory, setSelectedUserPaymentHistory] = useState<User | null>(null);
+  const [paymentDate, setPaymentDate] = useState('');
 
 
   useEffect(() => {
@@ -175,7 +176,7 @@ const AdminPage = () => {
     setOpenInvoiceDialog(false);
   };
 
-  const handleMarkAsPaid = (invoiceId: string, paymentDate: string) => {
+  const handleMarkAsPaid = (invoiceId: string) => {
     const updatedInvoices = invoices.map(inv =>
       inv.id === invoiceId ? {...inv, paid: true, paymentDate: paymentDate} : inv
     );
@@ -343,14 +344,17 @@ const AdminPage = () => {
                                 id="paymentDate"
                                 type="date"
                                 onChange={(e) => {
-                                  handleMarkAsPaid(invoice.id, e.target.value);
-                                  // Force update to re-render the component
-                                  setInvoices([...invoices]);
+                                  setPaymentDate(e.target.value);
                                 }}
                                 className="col-span-3"
                               />
                             </div>
                           </div>
+                          <CardFooter>
+                            <Button onClick={() => {
+                              handleMarkAsPaid(invoice.id);
+                            }}>Mark as Paid</Button>
+                          </CardFooter>
                         </DialogContent>
                       </Dialog>
                     )}
