@@ -1,11 +1,10 @@
-
 'use client';
 
 import {useState, createContext, useContext, ReactNode, useEffect} from 'react';
-import prisma from '@/lib/prisma';
+import {User as PrismaUser, Trainer as PrismaTrainer} from '@prisma/client';
 
 interface AuthContextType {
-  user: { id:string, role: string } | null;
+  user: { id: string, role: string } | null;
   login: (username: string, password: string) => Promise<boolean>;
   logout: () => void;
 }
@@ -13,7 +12,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({children}: { children: ReactNode }) => {
-  const [user, setUser] = useState<{ id:string, role: string } | null>(null);
+  const [user, setUser] = useState<{ id: string, role: string } | null>(null);
 
   useEffect(() => {
     // Check local storage for stored user data on initial load.
@@ -30,32 +29,39 @@ export const AuthProvider = ({children}: { children: ReactNode }) => {
 
   const login = async (username: string, password: string): Promise<boolean> => {
     try {
-      const foundUser = await prisma.user.findUnique({
-        where: {
-          email: username,
-        },
-      });
+      if (typeof window === 'undefined') {
+        const {PrismaClient} = await import('@prisma/client');
+        const prisma = new PrismaClient();
 
-      if (foundUser && username === foundUser.email && password === 'password') {
-        const userDetails = { id: foundUser.id, role: foundUser.role };
-        setUser(userDetails);
-        localStorage.setItem('user', JSON.stringify(userDetails)); // Store user data.
-        return true;
+        const foundUser = await prisma.user.findUnique({
+          where: {
+            email: username,
+          },
+        });
+
+        if (foundUser && username === foundUser.email && password === 'password') {
+          const userDetails = {id: foundUser.id, role: foundUser.role};
+          setUser(userDetails);
+          localStorage.setItem('user', JSON.stringify(userDetails)); // Store user data.
+          return true;
+        }
+
+        const foundTrainer = await prisma.trainer.findUnique({
+          where: {
+            email: username,
+          },
+        });
+
+        if (foundTrainer && username === foundTrainer.email && password === 'password') {
+          const userDetails = {id: foundTrainer.id, role: foundTrainer.role};
+          setUser(userDetails);
+          localStorage.setItem('user', JSON.stringify(userDetails)); // Store user data.
+          return true;
+        }
+
+        await prisma.$disconnect(); // Disconnect after use
       }
 
-      const foundTrainer = await prisma.trainer.findUnique({
-        where: {
-          email: username,
-        },
-      });
-
-      if (foundTrainer && username === foundTrainer.email && password === 'password') {
-        const userDetails = { id: foundTrainer.id, role: foundTrainer.role };
-        setUser(userDetails);
-        localStorage.setItem('user', JSON.stringify(userDetails)); // Store user data.
-        return true;
-      }
-      
       return false;
     } catch (error) {
       console.error('Login error:', error);
@@ -82,4 +88,3 @@ export const useAuth = () => {
   }
   return context;
 };
-
