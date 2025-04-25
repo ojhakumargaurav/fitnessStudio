@@ -1,3 +1,6 @@
+
+import prisma from '@/lib/prisma';
+
 /**
  * Represents a class.
  */
@@ -46,65 +49,13 @@ export interface Class {
  * @returns A promise that resolves to an array of Class objects.
  */
 export async function getClasses(): Promise<Class[]> {
-  // TODO: Implement this by calling an API.
-
-  return [
-    {
-      id: '1',
-      name: 'Yoga',
-      category: 'Yoga',
-      date: '2024-07-02',
-      startTime: '09:00',
-      endTime: '10:00',
-      capacity: 10,
-      availableSlots: 5,
-      trainerId: '2',
-    },
-    {
-      id: '2',
-      name: 'Strength Training',
-      category: 'Strength Training',
-      date: '2024-07-02',
-      startTime: '10:00',
-      endTime: '11:00',
-      capacity: 10,
-      availableSlots: 10,
-      trainerId: '1',
-    },
-    {
-      id: '3',
-      name: 'Cardio',
-      category: 'Cardio',
-      date: '2024-07-02',
-      startTime: '11:00',
-      endTime: '12:00',
-      capacity: 10,
-      availableSlots: 0,
-      trainerId: '1',
-    },
-    {
-      id: '4',
-      name: 'Yoga',
-      category: 'Yoga',
-      date: '2024-07-02',
-      startTime: '13:00',
-      endTime: '14:00',
-      capacity: 10,
-      availableSlots: 3,
-      trainerId: '2',
-    },
-    {
-      id: '5',
-      name: 'Strength Training',
-      category: 'Strength Training',
-      date: '2024-07-02',
-      startTime: '14:00',
-      endTime: '15:00',
-      capacity: 10,
-      availableSlots: 8,
-      trainerId: '1',
-    },
-  ];
+  try {
+    const classes = await prisma.class.findMany();
+    return classes;
+  } catch (error) {
+    console.error("Error fetching classes:", error);
+    return [];
+  }
 }
 
 /**
@@ -114,19 +65,17 @@ export async function getClasses(): Promise<Class[]> {
  * @returns A promise that resolves to a Class object.
  */
 export async function getClass(classId: string): Promise<Class | undefined> {
-  // TODO: Implement this by calling an API.
-
-  return {
-    id: classId,
-    name: 'Yoga',
-    category: 'Yoga',
-    date: '2024-07-02',
-    startTime: '09:00',
-    endTime: '10:00',
-    capacity: 10,
-    availableSlots: 5,
-    trainerId: '2',
-  };
+  try {
+    const cls = await prisma.class.findUnique({
+      where: {
+        id: classId,
+      },
+    });
+    return cls || undefined;
+  } catch (error) {
+    console.error("Error fetching class:", error);
+    return undefined;
+  }
 }
 
 /**

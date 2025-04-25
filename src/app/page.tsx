@@ -1,8 +1,10 @@
+
 'use client';
 
 import {Button} from '@/components/ui/button';
 import {useRouter} from 'next/navigation';
 import {useEffect, useState} from 'react';
+import prisma from '@/lib/prisma'; // Import Prisma client
 
 interface CarouselImage {
   id: string;
@@ -18,6 +20,24 @@ export default function Home() {
     {id: '3', url: 'https://picsum.photos/800/402', position: 3},
   ]);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+
+  useEffect(() => {
+    const fetchCarouselImages = async () => {
+      try {
+        const images = await prisma.carouselImage.findMany({
+          orderBy: {
+            position: 'asc',
+          },
+        });
+        setCarouselImages(images);
+      } catch (error) {
+        console.error('Error fetching carousel images:', error);
+        // Optionally set a default set of images or show an error message
+      }
+    };
+
+    fetchCarouselImages();
+  }, []);
 
   useEffect(() => {
     // Auto-advance the carousel every 5 seconds

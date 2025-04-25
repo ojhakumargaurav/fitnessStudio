@@ -1,9 +1,11 @@
+
 'use client';
 
 import {useState, createContext, useContext, ReactNode, useEffect} from 'react';
+import prisma from '@/lib/prisma';
 
 interface AuthContextType {
-  user: { role: string } | null;
+  user: { id:string, role: string } | null;
   login: (username: string, password: string) => Promise<boolean>;
   logout: () => void;
 }
@@ -11,7 +13,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({children}: { children: ReactNode }) => {
-  const [user, setUser] = useState<{ role: string } | null>(null);
+  const [user, setUser] = useState<{ id:string, role: string } | null>(null);
 
   useEffect(() => {
     // Check local storage for stored user data on initial load.
@@ -27,24 +29,38 @@ export const AuthProvider = ({children}: { children: ReactNode }) => {
   }, []);
 
   const login = async (username: string, password: string): Promise<boolean> => {
-    // Dummy authentication logic (replace with real API calls)
-    if (username === 'user' && password === 'password') {
-      const userDetails = {role: 'user'};
-      setUser(userDetails);
-      localStorage.setItem('user', JSON.stringify(userDetails)); // Store user data.
-      return true;
-    } else if (username === 'trainer' && password === 'password') {
-      const userDetails = {role: 'trainer'};
-      setUser(userDetails);
-      localStorage.setItem('user', JSON.stringify(userDetails)); // Store user data.
-    } else if (username === 'admin' && password === 'password') {
-      const userDetails = {role: 'admin'};
-      setUser(userDetails);
-      localStorage.setItem('user', JSON.stringify(userDetails));
-      localStorage.setItem('user', JSON.stringify(userDetails)); // Store user data.
-      return true;
+    try {
+      const foundUser = await prisma.user.findUnique({
+        where: {
+          email: username,
+        },
+      });
+
+      if (foundUser && username === foundUser.email && password === 'password') {
+        const userDetails = { id: foundUser.id, role: foundUser.role };
+        setUser(userDetails);
+        localStorage.setItem('user', JSON.stringify(userDetails)); // Store user data.
+        return true;
+      }
+
+      const foundTrainer = await prisma.trainer.findUnique({
+        where: {
+          email: username,
+        },
+      });
+
+      if (foundTrainer && username === foundTrainer.email && password === 'password') {
+        const userDetails = { id: foundTrainer.id, role: foundTrainer.role };
+        setUser(userDetails);
+        localStorage.setItem('user', JSON.stringify(userDetails)); // Store user data.
+        return true;
+      }
+      
+      return false;
+    } catch (error) {
+      console.error('Login error:', error);
+      return false;
     }
-    return false;
   };
 
   const logout = () => {
@@ -66,3 +82,4 @@ export const useAuth = () => {
   }
   return context;
 };
+

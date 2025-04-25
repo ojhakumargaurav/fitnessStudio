@@ -1,3 +1,6 @@
+
+import prisma from '@/lib/prisma';
+
 /**
  * Represents a trainer.
  */
@@ -42,30 +45,13 @@ export interface Trainer {
  * @returns A promise that resolves to an array of Trainer objects.
  */
 export async function getTrainers(): Promise<Trainer[]> {
-  // TODO: Implement this by calling an API.
-
-  return [
-    {
-      id: '1',
-      name: 'John Doe',
-      specialization: 'Strength Training',
-      experience: 5,
-      schedule: 'Monday, Wednesday, Friday',
-      email: 'john.doe@example.com',
-      phoneNumber: '123-456-7890',
-      role: 'trainer'
-    },
-    {
-      id: '2',
-      name: 'Jane Smith',
-      specialization: 'Yoga',
-      experience: 3,
-      schedule: 'Tuesday, Thursday, Saturday',
-      email: 'jane.smith@example.com',
-      phoneNumber: '987-654-3210',
-      role: 'admin'
-    },
-  ];
+  try {
+    const trainers = await prisma.trainer.findMany();
+    return trainers;
+  } catch (error) {
+    console.error("Error fetching trainers:", error);
+    return [];
+  }
 }
 
 /**
@@ -75,16 +61,16 @@ export async function getTrainers(): Promise<Trainer[]> {
  * @returns A promise that resolves to a Trainer object.
  */
 export async function getTrainer(trainerId: string): Promise<Trainer | undefined> {
-  // TODO: Implement this by calling an API.
-
-  return {
-    id: trainerId,
-    name: 'John Doe',
-    specialization: 'Strength Training',
-    experience: 5,
-    schedule: 'Monday, Wednesday, Friday',
-    email: 'john.doe@example.com',
-    phoneNumber: '123-456-7890',
-    role: 'trainer'
-  };
+  try {
+    const trainer = await prisma.trainer.findUnique({
+      where: {
+        id: trainerId,
+      },
+    });
+    return trainer || undefined;
+  } catch (error) {
+    console.error("Error fetching trainer:", error);
+    return undefined;
+  }
 }
+

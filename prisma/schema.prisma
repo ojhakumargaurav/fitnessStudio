@@ -1,0 +1,59 @@
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  name      String
+  email     String   @unique
+  role      String   @default("user")
+  phoneNumber String?
+  invoices  Invoice[]
+}
+
+model Trainer {
+  id             String   @id @default(uuid())
+  name           String
+  specialization String
+  experience     Int
+  schedule       String
+  email          String   @unique
+  phoneNumber    String?
+  role           String   @default("trainer")
+  classes        Class[]
+}
+
+model Class {
+  id            String   @id @default(uuid())
+  name          String
+  category      String
+  date          String
+  startTime     String
+  endTime       String
+  capacity      Int
+  availableSlots Int
+  trainerId     String
+  trainer       Trainer  @relation(fields: [trainerId], references: [id])
+}
+
+model Invoice {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  amount      Float
+  dueDate     String
+  paid        Boolean  @default(false)
+  paymentDate String?
+}
+
+model CarouselImage {
+  id       String @id @default(uuid())
+  url      String
+  position Int    @default(0)
+}
