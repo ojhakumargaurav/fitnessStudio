@@ -4,7 +4,7 @@
 import { Button } from '@/components/ui/button';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth'; // Import useAuth hook
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react'; // Import React
 import { Sheet, SheetContent, SheetTrigger, SheetClose } from "@/components/ui/sheet"; // Import SheetClose
 import { Menu, LogIn, UserPlus, LogOut, UserCircle, ShieldCheck, Briefcase, LayoutDashboard } from "lucide-react"; // Added icons
 import { cn } from "@/lib/utils";
