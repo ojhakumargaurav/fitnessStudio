@@ -27,37 +27,22 @@ import {Input} from "@/components/ui/input";
 import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogClose} from "@/components/ui/dialog";
 import {Label} from "@/components/ui/label";
 import {Textarea} from "@/components/ui/textarea";
-import {Trainer} from "@/services/trainer"; // Import Trainer type
-import {User} from "@/services/user"; // Import User type
+import {Trainer} from "@/actions/trainer"; // Import Trainer type from action
+import {User, UserStatus} from "@/actions/user"; // Import User type and Status from action
 import {Plus, Edit, Trash2, FileText, History, UserPlus, ImagePlus, CheckSquare} from "lucide-react";
 import {cn} from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
-import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@/components/ui/select";
-import {getUsers, createUser, updateUserStatus, UserStatus} from '@/actions/user'; // Import user server actions
+import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@/components/ui/select"; // Ensure Select components are imported
+import {getUsers, createUser, updateUserStatus} from '@/actions/user'; // Import user server actions
 import { getTrainers, createTrainer, updateTrainer, deleteTrainer } from '@/actions/trainer'; // Import trainer server actions
 import { getInvoices, createInvoice, markInvoiceAsPaid, Invoice } from '@/actions/invoice'; // Import invoice server actions
 import { getCarouselImages, addCarouselImage, deleteCarouselImage, updateCarouselImageOrder, CarouselImage } from '@/actions/carousel'; // Import carousel server actions
 import { useToast } from '@/hooks/use-toast';
 
-// Remove mock data as we fetch from DB now
-// interface Invoice {
-//   id: string;
-//   userId: string;
-//   amount: number;
-//   dueDate: string;
-//   paid: boolean;
-//   paymentDate?: string; // Optional payment date
-// }
-
-// interface CarouselImage {
-//   id: string;
-//   url: string;
-//   position: number;
-// }
 
 const AdminPage = () => {
-  const {user} = useAuth();
+  const {user, isLoading: isAuthLoading } = useAuth(); // Include auth loading state
   const router = useRouter();
   const { toast } = useToast();
   const [users, setUsers] = useState<User[]>([]);
@@ -98,28 +83,27 @@ const AdminPage = () => {
   // Carousel Image Management State
   const [openImageDialog, setOpenImageDialog] = useState(false);
   const [newImageUrl, setNewImageUrl] = useState('');
-  const [isLoading, setIsLoading] = useState(true); // Add loading state
+  const [isLoadingData, setIsLoadingData] = useState(true); // Changed name to avoid conflict
 
 
   useEffect(() => {
-    if (!user && !isLoading) { // Redirect only if not loading and no user
+    // Redirect if auth is finished loading and user is not admin
+    if (!isAuthLoading && (!user || user.role !== 'admin')) {
       router.push('/login');
-    } else if (user && user.role !== 'admin') {
-        router.push('/'); // Redirect non-admins to home
     }
-  }, [user, isLoading, router]);
+  }, [user, isAuthLoading, router]);
 
-  // Fetch initial data
+  // Fetch initial data only if user is confirmed admin
   useEffect(() => {
     if (user?.role === 'admin') {
         const fetchData = async () => {
-            setIsLoading(true);
+            setIsLoadingData(true); // Start loading data
             try {
                 const [userList, trainerList, invoiceList, imageList] = await Promise.all([
                     getUsers(),
                     getTrainers(),
                     getInvoices(),
-                    getCarouselImages()
+                    getCarouselImages() // Use action from carousel.ts
                 ]);
                 setUsers(userList);
                 setTrainers(trainerList);
@@ -130,20 +114,21 @@ const AdminPage = () => {
                 console.error("Error fetching admin data:", error);
                 toast({ title: "Error", description: "Failed to load dashboard data.", variant: "destructive" });
             } finally {
-                setIsLoading(false);
+                setIsLoadingData(false); // Finish loading data
             }
         };
         fetchData();
     }
-  }, [user, toast]); // Add toast to dependency array
+  }, [user, toast]); // Rerun if user changes
 
 
-  if (isLoading || !user) {
-    return <div className="container mx-auto py-10">Loading...</div>; // Or a proper loading spinner
+  // Show loading state while auth or data is loading
+  if (isAuthLoading || isLoadingData || !user) {
+    return <div className="container mx-auto py-10 text-center">Loading Admin Dashboard...</div>; // Or a proper loading spinner
   }
 
+  // This check is technically redundant due to the useEffect redirect, but kept as a safeguard
   if (user.role !== 'admin') {
-     // This should ideally be caught by the useEffect redirect, but serves as a fallback
     return <div className="container mx-auto py-10">Unauthorized Access</div>;
   }
 
@@ -158,7 +143,7 @@ const AdminPage = () => {
     setTrainerEmail(trainerToEdit?.email || '');
     setTrainerPassword(''); // Clear password field for security
     setTrainerPhoneNumber(trainerToEdit?.phoneNumber || '');
-    setTrainerRole(trainerToEdit?.role || 'trainer');
+    setTrainerRole(trainerToEdit?.role || 'trainer'); // Default to trainer
     setOpenTrainerDialog(true);
   };
 
@@ -171,8 +156,8 @@ const AdminPage = () => {
     }
 
     // Basic validation
-    if (!trainerName || !trainerSpecialization || !trainerEmail || (!editingTrainer && !trainerPassword)) {
-         toast({ title: "Error", description: "Please fill in all required trainer fields (including password for new trainers).", variant: "destructive" });
+    if (!trainerName || !trainerSpecialization || !trainerEmail || (!editingTrainer && !trainerPassword) || !trainerRole) {
+         toast({ title: "Error", description: "Please fill in all required trainer/admin fields (including password for new ones and role).", variant: "destructive" });
         return;
     }
 
@@ -184,7 +169,7 @@ const AdminPage = () => {
       email: trainerEmail,
       password: trainerPassword, // Only sent if provided (for new or password change)
       phoneNumber: trainerPhoneNumber || null,
-      role: trainerRole,
+      role: trainerRole as 'trainer' | 'admin', // Ensure role is correct type
     };
 
     try {
@@ -193,46 +178,53 @@ const AdminPage = () => {
             // Update existing trainer
              result = await updateTrainer(editingTrainer.id, {
                  ...trainerData,
-                 password: trainerPassword || undefined // Don't send empty password for update unless intended
+                 // Don't send empty password for update unless intended
+                 // Password field is cleared on dialog open, only send if user enters a new one
+                 password: trainerPassword ? trainerPassword : undefined
              });
-             if (result.success && result.trainer) {
-                setTrainers(trainers.map(t => t.id === result.trainer!.id ? result.trainer! : t));
-                toast({ title: "Success", description: "Trainer updated successfully." });
+             if (result.success && result.data?.trainer) {
+                setTrainers(trainers.map(t => t.id === result.data!.trainer!.id ? result.data!.trainer! : t));
+                toast({ title: "Success", description: "Trainer/Admin updated successfully." });
             } else {
-                throw new Error(result.error || "Failed to update trainer");
+                throw new Error(result.error || "Failed to update trainer/admin");
             }
         } else {
-            // Add new trainer
-             result = await createTrainer(trainerData);
-             if (result.success && result.trainer) {
-                setTrainers([...trainers, result.trainer]);
-                toast({ title: "Success", description: "Trainer added successfully." });
+            // Add new trainer/admin
+            // Ensure password is provided for new trainers/admins
+            if (!trainerPassword) {
+                toast({ title: "Error", description: "Password is required for new trainers/admins.", variant: "destructive" });
+                return;
+            }
+             result = await createTrainer({ ...trainerData, password: trainerPassword }); // Pass the required password
+             if (result.success && result.data?.trainer) {
+                setTrainers([...trainers, result.data.trainer]);
+                toast({ title: "Success", description: "Trainer/Admin added successfully." });
              } else {
-                 throw new Error(result.error || "Failed to add trainer");
+                 throw new Error(result.error || "Failed to add trainer/admin");
              }
         }
         setOpenTrainerDialog(false);
     } catch (error: any) {
-        console.error("Error saving trainer:", error);
-        toast({ title: "Error", description: error.message || "Could not save trainer.", variant: "destructive" });
+        console.error("Error saving trainer/admin:", error);
+        toast({ title: "Error", description: error.message || "Could not save trainer/admin.", variant: "destructive" });
     }
   };
 
   const handleDeleteTrainer = async (trainerId: string) => {
-    if (!confirm("Are you sure you want to delete this trainer? This action cannot be undone.")) {
+    if (!confirm("Are you sure you want to delete this trainer/admin? This action cannot be undone.")) {
         return;
     }
     try {
         const result = await deleteTrainer(trainerId);
         if (result.success) {
             setTrainers(trainers.filter(t => t.id !== trainerId));
-            toast({ title: "Success", description: "Trainer deleted successfully." });
+            toast({ title: "Success", description: "Trainer/Admin deleted successfully." });
         } else {
-             throw new Error(result.error || "Failed to delete trainer");
+             throw new Error(result.error || "Failed to delete trainer/admin");
         }
     } catch (error: any) {
-        console.error("Error deleting trainer:", error);
-        toast({ title: "Error", description: error.message || "Could not delete trainer.", variant: "destructive" });
+        console.error("Error deleting trainer/admin:", error);
+        toast({ title: "Error", description: error.message || "Could not delete trainer/admin.", variant: "destructive" });
     }
   };
 
@@ -262,8 +254,8 @@ const AdminPage = () => {
             amount: amount,
             dueDate: invoiceDueDate,
         });
-        if (result.success && result.invoice) {
-            setInvoices([...invoices, result.invoice]);
+        if (result.success && result.data?.invoice) {
+            setInvoices([...invoices, result.data.invoice]);
             toast({ title: "Success", description: "Invoice generated successfully." });
              setOpenInvoiceDialog(false); // Close dialog on success
         } else {
@@ -291,8 +283,8 @@ const AdminPage = () => {
 
     try {
       const result = await markInvoiceAsPaid(invoiceToMarkPaid.id, paymentDate);
-      if (result.success && result.invoice) {
-        setInvoices(invoices.map(inv => inv.id === result.invoice!.id ? result.invoice! : inv));
+      if (result.success && result.data?.invoice) {
+        setInvoices(invoices.map(inv => inv.id === result.data!.invoice!.id ? result.data!.invoice! : inv));
         toast({ title: "Success", description: "Invoice marked as paid." });
         setOpenMarkPaidDialog(false); // Close the dialog
         setInvoiceToMarkPaid(null); // Reset selected invoice
@@ -337,8 +329,8 @@ const AdminPage = () => {
         name: userName,
         email: userEmail,
         password: userPassword, // Send password for creation
-        phoneNumber: userPhoneNumber || null,
-        status: 'active' // Admins add active users directly
+        phoneNumber: userPhoneNumber || undefined, // Send undefined if empty, not null
+        status: UserStatus.ACTIVE // Admins add active users directly
       });
 
       if (result.success && result.user) {
@@ -355,7 +347,7 @@ const AdminPage = () => {
   };
 
    const handleVerifyUser = async (userId: string) => {
-    if (!confirm("Are you sure you want to verify this user and mark their payment as received?")) {
+    if (!confirm("Are you sure you want to verify this user and mark them as active?")) {
         return;
     }
     try {
@@ -367,8 +359,8 @@ const AdminPage = () => {
             // Optionally, generate the first invoice automatically upon verification
             // Consider adding a dialog for amount/due date if needed, or use defaults
             // const invoiceResult = await createInvoice({ userId: userId, amount: 50, dueDate: '...' });
-            // if (invoiceResult.success && invoiceResult.invoice) {
-            //    setInvoices([...invoices, invoiceResult.invoice]);
+            // if (invoiceResult.success && invoiceResult.data?.invoice) {
+            //    setInvoices([...invoices, invoiceResult.data.invoice]);
             //    toast({ title: "Info", description: "Initial invoice generated for the user." });
             // } else {
             //    toast({ title: "Warning", description: `User activated, but failed to generate initial invoice: ${invoiceResult.error}`, variant: "destructive" });
@@ -400,9 +392,9 @@ const AdminPage = () => {
         const nextPosition = carouselImages.length > 0 ? Math.max(...carouselImages.map(img => img.position)) + 1 : 1;
 
         const result = await addCarouselImage(newImageUrl, nextPosition);
-        if (result.success && result.image) {
+        if (result.success && result.data?.image) {
              // Add and re-sort locally to reflect the new order immediately
-             const updatedImages = [...carouselImages, result.image].sort((a, b) => a.position - b.position);
+             const updatedImages = [...carouselImages, result.data.image].sort((a, b) => a.position - b.position);
              setCarouselImages(updatedImages);
              toast({ title: "Success", description: "Image added successfully." });
              setOpenImageDialog(false);
@@ -479,12 +471,12 @@ const AdminPage = () => {
       <Card className="mb-8 shadow-md">
         <CardHeader className="flex flex-row items-center justify-between">
            <div>
-             <CardTitle>Users</CardTitle>
-             <CardDescription>View and manage registered users.</CardDescription>
+             <CardTitle>Users (Gym Clients)</CardTitle>
+             <CardDescription>View and manage registered clients.</CardDescription>
            </div>
            <Button onClick={handleOpenUserDialog}>
              <UserPlus className="mr-2 h-4 w-4"/>
-             Add User
+             Add Client
            </Button>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -507,7 +499,8 @@ const AdminPage = () => {
               {users.map((u) => {
                 const unpaidInvoice = getUnpaidInvoice(u.id);
                 // Highlight pending users or users with unpaid invoices
-                const rowClassName = u.status === UserStatus.PENDING ? "bg-yellow-100 dark:bg-yellow-900/30" : (unpaidInvoice ? "bg-red-100 dark:bg-red-900/30" : "");
+                 const isPending = u.status === UserStatus.PENDING;
+                const rowClassName = isPending ? "bg-yellow-100 dark:bg-yellow-900/30" : (unpaidInvoice ? "bg-red-100 dark:bg-red-900/30" : "");
 
                 return (
                   <TableRow key={u.id} className={cn(rowClassName)}>
@@ -515,18 +508,18 @@ const AdminPage = () => {
                     <TableCell>{u.email}</TableCell>
                     <TableCell>{u.phoneNumber || 'N/A'}</TableCell>
                     <TableCell>
-                       <Badge variant={u.status === UserStatus.ACTIVE ? 'default' : 'secondary'}>
+                       <Badge variant={isPending ? 'secondary' : 'default'}>
                            {u.status.charAt(0).toUpperCase() + u.status.slice(1)} {/* Capitalize status */}
                        </Badge>
                     </TableCell>
                     <TableCell className="text-right space-x-2">
-                       {u.status === UserStatus.PENDING && (
+                       {isPending && (
                            <Button variant="outline" size="sm" onClick={() => handleVerifyUser(u.id)}>
                                <CheckSquare className="mr-1 h-4 w-4" />
                                Verify & Activate
                            </Button>
                        )}
-                      <Button variant="outline" size="sm" onClick={() => handleOpenInvoiceDialog(u)} disabled={u.status !== UserStatus.ACTIVE}>
+                      <Button variant="outline" size="sm" onClick={() => handleOpenInvoiceDialog(u)} disabled={isPending}>
                         <FileText className="mr-1 h-4 w-4"/>
                         Generate Invoice
                       </Button>
@@ -547,7 +540,7 @@ const AdminPage = () => {
       <Card className="mb-8 shadow-md">
         <CardHeader className="flex flex-row items-center justify-between">
            <div>
-             <CardTitle>Trainers</CardTitle>
+             <CardTitle>Trainers & Admins</CardTitle>
              <CardDescription>Manage trainers and administrators.</CardDescription>
            </div>
           <Button onClick={()=> handleOpenTrainerDialog()}>
@@ -573,7 +566,7 @@ const AdminPage = () => {
             <TableBody>
              {trainers.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center text-muted-foreground">No trainers found.</TableCell>
+                  <TableCell colSpan={8} className="text-center text-muted-foreground">No trainers or admins found.</TableCell>
                 </TableRow>
               )}
               {trainers.map((trainer) => (
@@ -594,7 +587,14 @@ const AdminPage = () => {
                       <Edit className="mr-1 h-4 w-4"/>
                       Edit
                     </Button>
-                    <Button variant="destructive" size="sm" onClick={() => handleDeleteTrainer(trainer.id)}>
+                    {/* Prevent deleting the currently logged-in admin */}
+                    <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => handleDeleteTrainer(trainer.id)}
+                        disabled={user?.id === trainer.id && trainer.role === 'admin'}
+                        title={user?.id === trainer.id && trainer.role === 'admin' ? "Cannot delete your own admin account" : "Delete Trainer/Admin"}
+                        >
                       <Trash2 className="mr-1 h-4 w-4"/>
                       Delete
                     </Button>
@@ -617,6 +617,7 @@ const AdminPage = () => {
             <TableHeader>
               <TableRow>
                  <TableHead>User Name</TableHead>
+                 <TableHead>User Email</TableHead> {/* Added User Email */}
                 <TableHead>Amount</TableHead>
                 <TableHead>Due Date</TableHead>
                 <TableHead>Status</TableHead>
@@ -627,16 +628,19 @@ const AdminPage = () => {
             <TableBody>
              {invoices.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground">No invoices found.</TableCell>
+                  <TableCell colSpan={7} className="text-center text-muted-foreground">No invoices found.</TableCell> {/* Increased colSpan */}
                 </TableRow>
               )}
               {invoices.map((invoice) => {
-                  const userName = users.find(u => u.id === invoice.userId)?.name || 'Unknown User';
+                  const userInvoice = users.find(u => u.id === invoice.userId);
+                  const userName = userInvoice?.name || 'Unknown User';
+                  const userEmail = userInvoice?.email || 'N/A'; // Get user email
                   return (
                     <TableRow key={invoice.id} className={cn(!invoice.paid && "text-destructive")}>
                      <TableCell>{userName} ({invoice.userId.substring(0, 6)}...)</TableCell>
+                     <TableCell>{userEmail}</TableCell> {/* Display User Email */}
                       <TableCell>${invoice.amount.toFixed(2)}</TableCell>
-                      <TableCell>{invoice.dueDate}</TableCell>
+                      <TableCell>{new Date(invoice.dueDate).toLocaleDateString()}</TableCell> {/* Format Date */}
                       <TableCell>
                         {invoice.paid ? (
                           <Badge variant="default">Paid</Badge>
@@ -644,7 +648,7 @@ const AdminPage = () => {
                           <Badge variant="secondary">Unpaid</Badge>
                         )}
                       </TableCell>
-                      <TableCell>{invoice.paymentDate || "N/A"}</TableCell>
+                      <TableCell>{invoice.paymentDate ? new Date(invoice.paymentDate).toLocaleDateString() : "N/A"}</TableCell> {/* Format Date */}
                       <TableCell className="text-right">
                         {!invoice.paid && (
                            <Button variant="outline" size="sm" onClick={() => handleOpenMarkPaidDialog(invoice)}>
@@ -665,7 +669,7 @@ const AdminPage = () => {
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
             <CardTitle>Homepage Carousel</CardTitle>
-            <CardDescription>Manage images for the homepage slider.</CardDescription>
+            <CardDescription>Manage images for the homepage slider. Drag to reorder.</CardDescription>
           </div>
           <Button onClick={handleOpenImageDialog}>
               <ImagePlus className="mr-2 h-4 w-4"/>
@@ -714,7 +718,7 @@ const AdminPage = () => {
 
       {/* --- DIALOGS --- */}
 
-      {/* Trainer Dialog */}
+      {/* Trainer/Admin Dialog */}
       <Dialog open={openTrainerDialog} onOpenChange={setOpenTrainerDialog}>
         <DialogContent>
           <DialogHeader>
@@ -756,7 +760,7 @@ const AdminPage = () => {
                  value={trainerPassword}
                  onChange={(e) => setTrainerPassword(e.target.value)}
                  className="col-span-3"
-                 placeholder={editingTrainer ? "Leave blank to keep current password" : "Required"}
+                 placeholder={editingTrainer ? "Leave blank to keep current" : "Required"}
                  required={!editingTrainer} // Required only when creating
                />
              </div>
@@ -771,6 +775,7 @@ const AdminPage = () => {
                 onChange={(e) => setTrainerSpecialization(e.target.value)}
                 className="col-span-3"
                  required
+                 placeholder="e.g., Yoga, Strength"
               />
             </div>
             {/* Experience */}
@@ -820,14 +825,14 @@ const AdminPage = () => {
               <Label htmlFor="role" className="text-right">
                 Role
               </Label>
-              <Select value={trainerRole} onValueChange={(value) => setTrainerRole(value)} required>
-                <SelectTrigger className="col-span-3">
-                  <SelectValue placeholder="Select role" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="trainer">Trainer</SelectItem>
-                  <SelectItem value="admin">Admin</SelectItem>
-                </SelectContent>
+                <Select value={trainerRole} onValueChange={(value) => setTrainerRole(value as 'trainer' | 'admin')} required>
+                    <SelectTrigger className="col-span-3">
+                    <SelectValue placeholder="Select role" />
+                    </SelectTrigger>
+                    <SelectContent>
+                    <SelectItem value="trainer">Trainer</SelectItem>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    </SelectContent>
               </Select>
             </div>
           </div>
@@ -952,8 +957,8 @@ const AdminPage = () => {
                     <TableRow key={invoice.id}>
                       <TableCell className="font-mono text-xs">{invoice.id.substring(0,8)}...</TableCell>
                       <TableCell>${invoice.amount.toFixed(2)}</TableCell>
-                      <TableCell>{invoice.dueDate}</TableCell>
-                      <TableCell>{invoice.paymentDate}</TableCell>
+                      <TableCell>{new Date(invoice.dueDate).toLocaleDateString()}</TableCell>
+                      <TableCell>{invoice.paymentDate ? new Date(invoice.paymentDate).toLocaleDateString() : 'N/A'}</TableCell>
                       <TableCell>
                         <Badge variant="default">Paid</Badge>
                       </TableCell>
@@ -979,9 +984,9 @@ const AdminPage = () => {
       <Dialog open={openUserDialog} onOpenChange={setOpenUserDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Add New User</DialogTitle>
+            <DialogTitle>Add New Client</DialogTitle>
             <DialogDescription>
-              Create a new user account. They will be active immediately.
+              Create a new client account. They will be active immediately.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
@@ -1034,7 +1039,7 @@ const AdminPage = () => {
              <DialogClose asChild>
                 <Button type="button" variant="outline">Cancel</Button>
              </DialogClose>
-            <Button onClick={handleSaveUser}>Add User</Button>
+            <Button onClick={handleSaveUser}>Add Client</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
