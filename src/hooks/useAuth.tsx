@@ -1,70 +1,68 @@
+
 'use client';
 
-import {useState, createContext, useContext, ReactNode, useEffect} from 'react';
-import {User as PrismaUser, Trainer as PrismaTrainer} from '@prisma/client';
+import { useState, createContext, useContext, ReactNode, useEffect } from 'react';
+import { login as serverLogin } from '@/actions/auth'; // Import the server action
+
+// Define the user type more explicitly, including status
+interface AuthenticatedUser {
+  id: string;
+  role: string;
+  status?: string; // Add status, optional for trainers/admins
+}
 
 interface AuthContextType {
-  user: { id: string, role: string } | null;
+  user: AuthenticatedUser | null;
+  isLoading: boolean; // Add loading state
   login: (username: string, password: string) => Promise<boolean>;
   logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const AuthProvider = ({children}: { children: ReactNode }) => {
-  const [user, setUser] = useState<{ id: string, role: string } | null>(null);
+export const AuthProvider = ({ children }: { children: ReactNode }) => {
+  const [user, setUser] = useState<AuthenticatedUser | null>(null);
+  const [isLoading, setIsLoading] = useState(true); // Start loading until check is complete
 
   useEffect(() => {
     // Check local storage for stored user data on initial load.
     const storedUser = localStorage.getItem('user');
     if (storedUser) {
       try {
-        setUser(JSON.parse(storedUser));
+        const parsedUser = JSON.parse(storedUser) as AuthenticatedUser;
+        // Basic validation of the stored object
+        if (parsedUser && parsedUser.id && parsedUser.role) {
+          setUser(parsedUser);
+        } else {
+           console.warn('Invalid user data found in local storage.');
+           localStorage.removeItem('user'); // Clear invalid data
+        }
       } catch (error) {
         console.error('Error parsing user data from local storage:', error);
         localStorage.removeItem('user'); // Clear invalid data
       }
     }
+    setIsLoading(false); // Finished loading/checking local storage
   }, []);
 
   const login = async (username: string, password: string): Promise<boolean> => {
+    setIsLoading(true);
     try {
-      if (typeof window === 'undefined') {
-        const {PrismaClient} = await import('@prisma/client');
-        const prisma = new PrismaClient();
-
-        const foundUser = await prisma.user.findUnique({
-          where: {
-            email: username,
-          },
-        });
-
-        if (foundUser && username === foundUser.email && password === 'password') {
-          const userDetails = {id: foundUser.id, role: foundUser.role};
-          setUser(userDetails);
-          localStorage.setItem('user', JSON.stringify(userDetails)); // Store user data.
-          return true;
-        }
-
-        const foundTrainer = await prisma.trainer.findUnique({
-          where: {
-            email: username,
-          },
-        });
-
-        if (foundTrainer && username === foundTrainer.email && password === 'password') {
-          const userDetails = {id: foundTrainer.id, role: foundTrainer.role};
-          setUser(userDetails);
-          localStorage.setItem('user', JSON.stringify(userDetails)); // Store user data.
-          return true;
-        }
-
-        await prisma.$disconnect(); // Disconnect after use
+      const result = await serverLogin(username, password);
+      if (result.success && result.user) {
+        setUser(result.user);
+        localStorage.setItem('user', JSON.stringify(result.user)); // Store user data.
+        setIsLoading(false);
+        return true;
+      } else {
+        // Handle login failure (e.g., display error message)
+        console.error('Login failed:', result.error);
+        setIsLoading(false);
+        return false;
       }
-
-      return false;
     } catch (error) {
       console.error('Login error:', error);
+      setIsLoading(false);
       return false;
     }
   };
@@ -74,8 +72,11 @@ export const AuthProvider = ({children}: { children: ReactNode }) => {
     localStorage.removeItem('user'); // Clear stored user data on logout.
   };
 
+  // Provide isLoading state to consumers
+  const contextValue = { user, isLoading, login, logout };
+
   return (
-    <AuthContext.Provider value={{user, login, logout}}>
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );
@@ -83,7 +84,7 @@ export const AuthProvider = ({children}: { children: ReactNode }) => {
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (!context) {
+  if (context === undefined) { // Check for undefined specifically
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;

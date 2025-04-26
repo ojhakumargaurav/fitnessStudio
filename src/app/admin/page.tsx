@@ -1,3 +1,4 @@
+
 'use client';
 
 import {useAuth} from '@/hooks/useAuth';
@@ -23,41 +24,46 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import {Input} from "@/components/ui/input";
-import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger} from "@/components/ui/dialog";
+import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogClose} from "@/components/ui/dialog";
 import {Label} from "@/components/ui/label";
 import {Textarea} from "@/components/ui/textarea";
-import {Trainer, getTrainers} from "@/services/trainer"; // Import Trainer type and getTrainers function
-import {User, getUsers} from "@/services/user"; // Import User type and getUsers function
-import {Plus, Edit, Trash2, FileText, History, UserPlus, ImagePlus} from "lucide-react";
+import {Trainer} from "@/services/trainer"; // Import Trainer type
+import {User} from "@/services/user"; // Import User type
+import {Plus, Edit, Trash2, FileText, History, UserPlus, ImagePlus, CheckSquare} from "lucide-react";
 import {cn} from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
-import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
-import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@/components/ui/select"; //Import Select components
+import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
+import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@/components/ui/select";
+import {getUsers, createUser, updateUserStatus, UserStatus} from '@/actions/user'; // Import user server actions
+import { getTrainers, createTrainer, updateTrainer, deleteTrainer } from '@/actions/trainer'; // Import trainer server actions
+import { getInvoices, createInvoice, markInvoiceAsPaid, Invoice } from '@/actions/invoice'; // Import invoice server actions
+import { getCarouselImages, addCarouselImage, deleteCarouselImage, updateCarouselImageOrder, CarouselImage } from '@/actions/carousel'; // Import carousel server actions
+import { useToast } from '@/hooks/use-toast';
 
-interface Invoice {
-  id: string;
-  userId: string;
-  amount: number;
-  dueDate: string;
-  paid: boolean;
-  paymentDate?: string; // Optional payment date
-}
+// Remove mock data as we fetch from DB now
+// interface Invoice {
+//   id: string;
+//   userId: string;
+//   amount: number;
+//   dueDate: string;
+//   paid: boolean;
+//   paymentDate?: string; // Optional payment date
+// }
 
-interface CarouselImage {
-  id: string;
-  url: string;
-  position: number;
-}
+// interface CarouselImage {
+//   id: string;
+//   url: string;
+//   position: number;
+// }
 
 const AdminPage = () => {
   const {user} = useAuth();
   const router = useRouter();
+  const { toast } = useToast();
   const [users, setUsers] = useState<User[]>([]);
   const [trainers, setTrainers] = useState<Trainer[]>([]);
-  const [invoices, setInvoices] = useState<Invoice[]>([
-    {id: '1', userId: '1', amount: 100, dueDate: '2024-07-10', paid: true, paymentDate: '2024-07-09'},
-    {id: '2', userId: '2', amount: 150, dueDate: '2024-07-15', paid: false},
-  ]);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [carouselImages, setCarouselImages] = useState<CarouselImage[]>([]);
 
   // Trainer Management State
   const [openTrainerDialog, setOpenTrainerDialog] = useState(false);
@@ -67,6 +73,7 @@ const AdminPage = () => {
   const [trainerExperience, setTrainerExperience] = useState('');
   const [trainerSchedule, setTrainerSchedule] = useState('');
   const [trainerEmail, setTrainerEmail] = useState('');
+  const [trainerPassword, setTrainerPassword] = useState(''); // Add password state
   const [trainerPhoneNumber, setTrainerPhoneNumber] = useState('');
   const [trainerRole, setTrainerRole] = useState('trainer');
 
@@ -78,119 +85,159 @@ const AdminPage = () => {
   const [openPaymentHistoryDialog, setOpenPaymentHistoryDialog] = useState(false);
   const [selectedUserPaymentHistory, setSelectedUserPaymentHistory] = useState<User | null>(null);
   const [paymentDate, setPaymentDate] = useState('');
+  const [openMarkPaidDialog, setOpenMarkPaidDialog] = useState(false);
+  const [invoiceToMarkPaid, setInvoiceToMarkPaid] = useState<Invoice | null>(null);
 
-  // User Management State
+  // User Management State (For adding new users via admin)
   const [openUserDialog, setOpenUserDialog] = useState(false);
   const [userName, setUserName] = useState('');
   const [userEmail, setUserEmail] = useState('');
+   const [userPassword, setUserPassword] = useState(''); // Add password state
   const [userPhoneNumber, setUserPhoneNumber] = useState('');
 
   // Carousel Image Management State
-  const [carouselImages, setCarouselImages] = useState<CarouselImage[]>([
-    {id: '1', url: 'https://picsum.photos/800/400', position: 1},
-    {id: '2', url: 'https://picsum.photos/800/401', position: 2},
-    {id: '3', url: 'https://picsum.photos/800/402', position: 3},
-  ]);
   const [openImageDialog, setOpenImageDialog] = useState(false);
   const [newImageUrl, setNewImageUrl] = useState('');
+  const [isLoading, setIsLoading] = useState(true); // Add loading state
 
 
   useEffect(() => {
-    if (!user || user.role !== 'admin') {
-      router.push('/login'); // Redirect to login if not admin
+    if (!user && !isLoading) { // Redirect only if not loading and no user
+      router.push('/login');
+    } else if (user && user.role !== 'admin') {
+        router.push('/'); // Redirect non-admins to home
     }
-  }, [user, router]);
+  }, [user, isLoading, router]);
 
+  // Fetch initial data
   useEffect(() => {
-    const fetchUsers = async () => {
-      const userList = await getUsers();
-      setUsers(userList);
-    };
+    if (user?.role === 'admin') {
+        const fetchData = async () => {
+            setIsLoading(true);
+            try {
+                const [userList, trainerList, invoiceList, imageList] = await Promise.all([
+                    getUsers(),
+                    getTrainers(),
+                    getInvoices(),
+                    getCarouselImages()
+                ]);
+                setUsers(userList);
+                setTrainers(trainerList);
+                setInvoices(invoiceList);
+                // Ensure images are sorted by position
+                setCarouselImages(imageList.sort((a, b) => a.position - b.position));
+            } catch (error) {
+                console.error("Error fetching admin data:", error);
+                toast({ title: "Error", description: "Failed to load dashboard data.", variant: "destructive" });
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        fetchData();
+    }
+  }, [user, toast]); // Add toast to dependency array
 
-    const fetchTrainers = async () => {
-      const trainerList = await getTrainers();
-      setTrainers(trainerList);
-    };
 
-    fetchUsers();
-    fetchTrainers();
-  }, []);
-
-
-  if (!user) {
-    return <div>Redirecting to login...</div>;
+  if (isLoading || !user) {
+    return <div className="container mx-auto py-10">Loading...</div>; // Or a proper loading spinner
   }
 
   if (user.role !== 'admin') {
-    return <div>Unauthorized</div>;
+     // This should ideally be caught by the useEffect redirect, but serves as a fallback
+    return <div className="container mx-auto py-10">Unauthorized Access</div>;
   }
 
-  // Trainer Management Handlers
-  const handleOpenTrainerDialog = () => {
-    setEditingTrainer(null);
-    setTrainerName('');
-    setTrainerSpecialization('');
-    setTrainerExperience('');
-    setTrainerSchedule('');
-    setTrainerEmail('');
-    setTrainerPhoneNumber('');
-    setTrainerRole('trainer'); // Default to trainer
+
+  // --- Trainer Management Handlers ---
+  const handleOpenTrainerDialog = (trainerToEdit: Trainer | null = null) => {
+    setEditingTrainer(trainerToEdit);
+    setTrainerName(trainerToEdit?.name || '');
+    setTrainerSpecialization(trainerToEdit?.specialization || '');
+    setTrainerExperience(trainerToEdit?.experience.toString() || '');
+    setTrainerSchedule(trainerToEdit?.schedule || '');
+    setTrainerEmail(trainerToEdit?.email || '');
+    setTrainerPassword(''); // Clear password field for security
+    setTrainerPhoneNumber(trainerToEdit?.phoneNumber || '');
+    setTrainerRole(trainerToEdit?.role || 'trainer');
     setOpenTrainerDialog(true);
   };
 
-  const handleEditTrainer = (trainer: Trainer) => {
-    setEditingTrainer(trainer);
-    setTrainerName(trainer.name);
-    setTrainerSpecialization(trainer.specialization);
-    setTrainerExperience(trainer.experience.toString());
-    setTrainerSchedule(trainer.schedule);
-    setTrainerEmail(trainer.email);
-    setTrainerPhoneNumber(trainer.phoneNumber || '');
-    setTrainerRole(trainer.role || 'trainer'); // Ensure role is defined
-    setOpenTrainerDialog(true);
-  };
 
-  const handleSaveTrainer = () => {
-    // TODO: Implement saving logic, including API calls
-    if (editingTrainer) {
-      // Update existing trainer
-      const updatedTrainers = trainers.map(t =>
-        t.id === editingTrainer.id ? {
-          ...t,
-          name: trainerName,
-          specialization: trainerSpecialization,
-          experience: parseInt(trainerExperience),
-          schedule: trainerSchedule,
-          email: trainerEmail,
-          phoneNumber: trainerPhoneNumber,
-          role: trainerRole
-        } : t
-      );
-      setTrainers(updatedTrainers);
-    } else {
-      // Add new trainer
-      const newTrainer = {
-        id: Math.random().toString(), // Generate a random ID
-        name: trainerName,
-        specialization: trainerSpecialization,
-        experience: parseInt(trainerExperience),
-        schedule: trainerSchedule,
-        email: trainerEmail,
-        phoneNumber: trainerPhoneNumber,
-        role: trainerRole
-      };
-      setTrainers([...trainers, newTrainer]);
+  const handleSaveTrainer = async () => {
+    const experienceNum = parseInt(trainerExperience);
+    if (isNaN(experienceNum)) {
+        toast({ title: "Error", description: "Experience must be a number.", variant: "destructive" });
+        return;
     }
-    setOpenTrainerDialog(false);
+
+    // Basic validation
+    if (!trainerName || !trainerSpecialization || !trainerEmail || (!editingTrainer && !trainerPassword)) {
+         toast({ title: "Error", description: "Please fill in all required trainer fields (including password for new trainers).", variant: "destructive" });
+        return;
+    }
+
+    const trainerData = {
+      name: trainerName,
+      specialization: trainerSpecialization,
+      experience: experienceNum,
+      schedule: trainerSchedule,
+      email: trainerEmail,
+      password: trainerPassword, // Only sent if provided (for new or password change)
+      phoneNumber: trainerPhoneNumber || null,
+      role: trainerRole,
+    };
+
+    try {
+        let result;
+        if (editingTrainer) {
+            // Update existing trainer
+             result = await updateTrainer(editingTrainer.id, {
+                 ...trainerData,
+                 password: trainerPassword || undefined // Don't send empty password for update unless intended
+             });
+             if (result.success && result.trainer) {
+                setTrainers(trainers.map(t => t.id === result.trainer!.id ? result.trainer! : t));
+                toast({ title: "Success", description: "Trainer updated successfully." });
+            } else {
+                throw new Error(result.error || "Failed to update trainer");
+            }
+        } else {
+            // Add new trainer
+             result = await createTrainer(trainerData);
+             if (result.success && result.trainer) {
+                setTrainers([...trainers, result.trainer]);
+                toast({ title: "Success", description: "Trainer added successfully." });
+             } else {
+                 throw new Error(result.error || "Failed to add trainer");
+             }
+        }
+        setOpenTrainerDialog(false);
+    } catch (error: any) {
+        console.error("Error saving trainer:", error);
+        toast({ title: "Error", description: error.message || "Could not save trainer.", variant: "destructive" });
+    }
   };
 
-  const handleDeleteTrainer = (trainerId: string) => {
-    // TODO: Implement delete logic, including API calls
-    const updatedTrainers = trainers.filter(t => t.id !== trainerId);
-    setTrainers(updatedTrainers);
+  const handleDeleteTrainer = async (trainerId: string) => {
+    if (!confirm("Are you sure you want to delete this trainer? This action cannot be undone.")) {
+        return;
+    }
+    try {
+        const result = await deleteTrainer(trainerId);
+        if (result.success) {
+            setTrainers(trainers.filter(t => t.id !== trainerId));
+            toast({ title: "Success", description: "Trainer deleted successfully." });
+        } else {
+             throw new Error(result.error || "Failed to delete trainer");
+        }
+    } catch (error: any) {
+        console.error("Error deleting trainer:", error);
+        toast({ title: "Error", description: error.message || "Could not delete trainer.", variant: "destructive" });
+    }
   };
 
-  // Invoice Management Handlers
+
+  // --- Invoice Management Handlers ---
   const handleOpenInvoiceDialog = (user: User) => {
     setSelectedUserForInvoice(user);
     setInvoiceAmount('');
@@ -198,26 +245,66 @@ const AdminPage = () => {
     setOpenInvoiceDialog(true);
   };
 
-  const handleGenerateInvoice = () => {
-    if (!selectedUserForInvoice) return;
+  const handleGenerateInvoice = async () => {
+    if (!selectedUserForInvoice || !invoiceAmount || !invoiceDueDate) {
+         toast({ title: "Error", description: "Please provide amount and due date.", variant: "destructive" });
+         return;
+    }
+    const amount = parseFloat(invoiceAmount);
+     if (isNaN(amount) || amount <= 0) {
+        toast({ title: "Error", description: "Invalid invoice amount.", variant: "destructive" });
+        return;
+     }
 
-    const newInvoice = {
-      id: Math.random().toString(), // Generate a random ID
-      userId: selectedUserForInvoice.id,
-      amount: parseFloat(invoiceAmount),
-      dueDate: invoiceDueDate,
-      paid: false
-    };
-    setInvoices([...invoices, newInvoice]);
-    setOpenInvoiceDialog(false);
+    try {
+        const result = await createInvoice({
+            userId: selectedUserForInvoice.id,
+            amount: amount,
+            dueDate: invoiceDueDate,
+        });
+        if (result.success && result.invoice) {
+            setInvoices([...invoices, result.invoice]);
+            toast({ title: "Success", description: "Invoice generated successfully." });
+             setOpenInvoiceDialog(false); // Close dialog on success
+        } else {
+            throw new Error(result.error || "Failed to generate invoice");
+        }
+    } catch (error: any) {
+        console.error("Error generating invoice:", error);
+        toast({ title: "Error", description: error.message || "Could not generate invoice.", variant: "destructive" });
+    }
   };
 
-  const handleMarkAsPaid = (invoiceId: string, paymentDateValue: string) => {
-    const updatedInvoices = invoices.map(inv =>
-      inv.id === invoiceId ? {...inv, paid: true, paymentDate: paymentDateValue} : inv
-    );
-    setInvoices(updatedInvoices);
+
+  const handleOpenMarkPaidDialog = (invoice: Invoice) => {
+    setInvoiceToMarkPaid(invoice);
+    setPaymentDate(new Date().toISOString().split('T')[0]); // Default to today
+    setOpenMarkPaidDialog(true);
   };
+
+
+ const handleMarkAsPaid = async () => {
+    if (!invoiceToMarkPaid || !paymentDate) {
+      toast({ title: "Error", description: "Please select a payment date.", variant: "destructive" });
+      return;
+    }
+
+    try {
+      const result = await markInvoiceAsPaid(invoiceToMarkPaid.id, paymentDate);
+      if (result.success && result.invoice) {
+        setInvoices(invoices.map(inv => inv.id === result.invoice!.id ? result.invoice! : inv));
+        toast({ title: "Success", description: "Invoice marked as paid." });
+        setOpenMarkPaidDialog(false); // Close the dialog
+        setInvoiceToMarkPaid(null); // Reset selected invoice
+      } else {
+        throw new Error(result.error || "Failed to mark invoice as paid");
+      }
+    } catch (error: any) {
+      console.error("Error marking invoice as paid:", error);
+      toast({ title: "Error", description: error.message || "Could not mark invoice as paid.", variant: "destructive" });
+    }
+  };
+
 
   const handleOpenPaymentHistory = (user: User) => {
     setSelectedUserPaymentHistory(user);
@@ -225,111 +312,226 @@ const AdminPage = () => {
   };
 
   const getUnpaidInvoice = (userId: string): Invoice | undefined => {
+    // Find the *first* unpaid invoice for simplicity, or adjust logic if needed
     return invoices.find(invoice => invoice.userId === userId && !invoice.paid);
   };
 
-  // User Management Handlers
+
+ // --- User Management Handlers ---
   const handleOpenUserDialog = () => {
     setUserName('');
     setUserEmail('');
+    setUserPassword(''); // Clear password field
     setUserPhoneNumber('');
     setOpenUserDialog(true);
   };
 
-  const handleSaveUser = () => {
-    // TODO: Implement saving logic, including API calls
-    const newUser = {
-      id: Math.random().toString(), // Generate a random ID
-      name: userName,
-      email: userEmail,
-      role: 'user', // Always 'user'
-      phoneNumber: userPhoneNumber,
-    };
-    setUsers([...users, newUser]);
-    setOpenUserDialog(false);
+  const handleSaveUser = async () => {
+     if (!userName || !userEmail || !userPassword) {
+        toast({ title: "Error", description: "Please fill in name, email, and password.", variant: "destructive" });
+        return;
+     }
+
+    try {
+      const result = await createUser({
+        name: userName,
+        email: userEmail,
+        password: userPassword, // Send password for creation
+        phoneNumber: userPhoneNumber || null,
+        status: 'active' // Admins add active users directly
+      });
+
+      if (result.success && result.user) {
+        setUsers([...users, result.user]);
+        toast({ title: "Success", description: "User added successfully." });
+        setOpenUserDialog(false);
+      } else {
+        throw new Error(result.error || "Failed to add user");
+      }
+    } catch (error: any) {
+      console.error("Error adding user:", error);
+      toast({ title: "Error", description: error.message || "Could not add user.", variant: "destructive" });
+    }
   };
 
-  // Carousel Image Management Handlers
+   const handleVerifyUser = async (userId: string) => {
+    if (!confirm("Are you sure you want to verify this user and mark their payment as received?")) {
+        return;
+    }
+    try {
+        const result = await updateUserStatus(userId, UserStatus.ACTIVE);
+        if (result.success && result.user) {
+            setUsers(users.map(u => u.id === userId ? result.user! : u));
+            toast({ title: "Success", description: "User verified and activated." });
+
+            // Optionally, generate the first invoice automatically upon verification
+            // Consider adding a dialog for amount/due date if needed, or use defaults
+            // const invoiceResult = await createInvoice({ userId: userId, amount: 50, dueDate: '...' });
+            // if (invoiceResult.success && invoiceResult.invoice) {
+            //    setInvoices([...invoices, invoiceResult.invoice]);
+            //    toast({ title: "Info", description: "Initial invoice generated for the user." });
+            // } else {
+            //    toast({ title: "Warning", description: `User activated, but failed to generate initial invoice: ${invoiceResult.error}`, variant: "destructive" });
+            // }
+
+        } else {
+            throw new Error(result.error || "Failed to verify user.");
+        }
+    } catch (error: any) {
+        console.error("Error verifying user:", error);
+        toast({ title: "Error", description: error.message || "Could not verify user.", variant: "destructive" });
+    }
+  };
+
+ // --- Carousel Image Management Handlers ---
   const handleOpenImageDialog = () => {
     setNewImageUrl('');
     setOpenImageDialog(true);
   };
 
-  const handleAddImage = () => {
-    const newImage: CarouselImage = {
-      id: Math.random().toString(),
-      url: newImageUrl,
-      position: carouselImages.length + 1,
-    };
-    setCarouselImages([...carouselImages, newImage]);
-    setOpenImageDialog(false);
+  const handleAddImage = async () => {
+    if (!newImageUrl || !newImageUrl.startsWith('http')) {
+       toast({ title: "Error", description: "Please enter a valid image URL.", variant: "destructive" });
+       return;
+    }
+
+    try {
+        // Calculate next position
+        const nextPosition = carouselImages.length > 0 ? Math.max(...carouselImages.map(img => img.position)) + 1 : 1;
+
+        const result = await addCarouselImage(newImageUrl, nextPosition);
+        if (result.success && result.image) {
+             // Add and re-sort locally to reflect the new order immediately
+             const updatedImages = [...carouselImages, result.image].sort((a, b) => a.position - b.position);
+             setCarouselImages(updatedImages);
+             toast({ title: "Success", description: "Image added successfully." });
+             setOpenImageDialog(false);
+        } else {
+             throw new Error(result.error || "Failed to add image.");
+        }
+    } catch (error: any) {
+         console.error("Error adding carousel image:", error);
+         toast({ title: "Error", description: error.message || "Could not add image.", variant: "destructive" });
+    }
+};
+
+  const handleDeleteImage = async (imageId: string) => {
+    if (!confirm("Are you sure you want to delete this image?")) {
+      return;
+    }
+     try {
+        const result = await deleteCarouselImage(imageId);
+        if (result.success) {
+             const updatedImages = carouselImages.filter(img => img.id !== imageId);
+             // Re-calculate positions after deletion is not strictly necessary if relying on DB order,
+             // but good for immediate UI consistency if needed. Let's keep it simple for now.
+             setCarouselImages(updatedImages.sort((a,b)=> a.position - b.position)); // Re-sort after delete
+             toast({ title: "Success", description: "Image deleted successfully." });
+        } else {
+             throw new Error(result.error || "Failed to delete image.");
+        }
+     } catch (error: any) {
+          console.error("Error deleting carousel image:", error);
+          toast({ title: "Error", description: error.message || "Could not delete image.", variant: "destructive" });
+     }
   };
 
-  const handleDeleteImage = (imageId: string) => {
-    const updatedImages = carouselImages.filter(img => img.id !== imageId);
-    // Re-calculate positions after deletion
-    const reorderedImages = updatedImages.map((img, index) => ({...img, position: index + 1}));
-    setCarouselImages(reorderedImages);
-  };
-
-  const handleOnDragEnd = (result: any) => {
+ const handleOnDragEnd = async (result: DropResult) => {
     if (!result.destination) return;
 
     const items = Array.from(carouselImages);
     const [reorderedItem] = items.splice(result.source.index, 1);
     items.splice(result.destination.index, 0, reorderedItem);
 
-    // Update positions based on new order
-    const updatedImages = items.map((img, index) => ({...img, position: index + 1}));
+    // Create the new order mapping: {imageId: newPosition}
+    const newOrder = items.map((item, index) => ({
+        id: item.id,
+        position: index + 1 // Positions are 1-based
+    }));
 
-    setCarouselImages(updatedImages);
-  };
+     // Optimistically update UI
+    setCarouselImages(items.map((item, index)=> ({...item, position: index+1})));
+
+    try {
+        const updateResult = await updateCarouselImageOrder(newOrder);
+        if (!updateResult.success) {
+            // Revert UI on failure
+            setCarouselImages(carouselImages); // Revert to original order
+            throw new Error(updateResult.error || "Failed to update image order.");
+        }
+         toast({ title: "Success", description: "Image order updated." });
+         // No need to set state again as UI was updated optimistically
+    } catch (error: any) {
+        console.error("Error updating carousel order:", error);
+        toast({ title: "Error", description: error.message || "Could not update image order.", variant: "destructive" });
+         // Revert UI on error
+        setCarouselImages(carouselImages);
+    }
+};
 
 
   return (
     <div className="container mx-auto py-10">
       <h1 className="text-3xl font-bold mb-5 text-primary">Admin Dashboard</h1>
-      <p>Manage users, trainers, and invoices here.</p>
+      <p className="text-muted-foreground mb-8">Manage users, trainers, invoices, and site content.</p>
 
       {/* User Management */}
-      <Card className="mb-5">
-        <CardHeader>
-          <CardTitle>Users</CardTitle>
-          <CardDescription>List of all users in the system.</CardDescription>
+      <Card className="mb-8 shadow-md">
+        <CardHeader className="flex flex-row items-center justify-between">
+           <div>
+             <CardTitle>Users</CardTitle>
+             <CardDescription>View and manage registered users.</CardDescription>
+           </div>
+           <Button onClick={handleOpenUserDialog}>
+             <UserPlus className="mr-2 h-4 w-4"/>
+             Add User
+           </Button>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex justify-end">
-            <Button onClick={handleOpenUserDialog}>
-              <UserPlus className="mr-2 h-4 w-4"/>
-              Add User
-            </Button>
-          </div>
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Phone Number</TableHead>
+                <TableHead>Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {users.map((user) => {
-                const unpaidInvoice = getUnpaidInvoice(user.id);
-                const rowClassName = unpaidInvoice ? "text-destructive" : "";
+              {users.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center text-muted-foreground">No users found.</TableCell>
+                </TableRow>
+              )}
+              {users.map((u) => {
+                const unpaidInvoice = getUnpaidInvoice(u.id);
+                // Highlight pending users or users with unpaid invoices
+                const rowClassName = u.status === UserStatus.PENDING ? "bg-yellow-100 dark:bg-yellow-900/30" : (unpaidInvoice ? "bg-red-100 dark:bg-red-900/30" : "");
 
                 return (
-                  <TableRow key={user.id} className={rowClassName}>
-                    <TableCell>{user.name}</TableCell>
-                    <TableCell>{user.email}</TableCell>
-                    <TableCell>{user.phoneNumber}</TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="outline" size="sm" onClick={() => handleOpenInvoiceDialog(user)}>
-                        <FileText className="mr-2 h-4 w-4"/>
+                  <TableRow key={u.id} className={cn(rowClassName)}>
+                    <TableCell className="font-medium">{u.name}</TableCell>
+                    <TableCell>{u.email}</TableCell>
+                    <TableCell>{u.phoneNumber || 'N/A'}</TableCell>
+                    <TableCell>
+                       <Badge variant={u.status === UserStatus.ACTIVE ? 'default' : 'secondary'}>
+                           {u.status.charAt(0).toUpperCase() + u.status.slice(1)} {/* Capitalize status */}
+                       </Badge>
+                    </TableCell>
+                    <TableCell className="text-right space-x-2">
+                       {u.status === UserStatus.PENDING && (
+                           <Button variant="outline" size="sm" onClick={() => handleVerifyUser(u.id)}>
+                               <CheckSquare className="mr-1 h-4 w-4" />
+                               Verify & Activate
+                           </Button>
+                       )}
+                      <Button variant="outline" size="sm" onClick={() => handleOpenInvoiceDialog(u)} disabled={u.status !== UserStatus.ACTIVE}>
+                        <FileText className="mr-1 h-4 w-4"/>
                         Generate Invoice
                       </Button>
-                      <Button variant="secondary" size="sm" onClick={() => handleOpenPaymentHistory(user)}>
-                        <History className="mr-2 h-4 w-4"/>
+                      <Button variant="secondary" size="sm" onClick={() => handleOpenPaymentHistory(u)}>
+                        <History className="mr-1 h-4 w-4"/>
                         Payment History
                       </Button>
                     </TableCell>
@@ -342,18 +544,19 @@ const AdminPage = () => {
       </Card>
 
       {/* Trainer Management */}
-      <Card className="mb-5">
-        <CardHeader>
-          <CardTitle>Trainers</CardTitle>
-          <CardDescription>Manage trainers in the system.</CardDescription>
+      <Card className="mb-8 shadow-md">
+        <CardHeader className="flex flex-row items-center justify-between">
+           <div>
+             <CardTitle>Trainers</CardTitle>
+             <CardDescription>Manage trainers and administrators.</CardDescription>
+           </div>
+          <Button onClick={()=> handleOpenTrainerDialog()}>
+              <Plus className="mr-2 h-4 w-4"/>
+              Add Trainer/Admin
+            </Button>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex justify-end">
-            <Button onClick={handleOpenTrainerDialog}>
-              <Plus className="mr-2 h-4 w-4"/>
-              Add Trainer
-            </Button>
-          </div>
+
           <Table>
             <TableHeader>
               <TableRow>
@@ -363,25 +566,36 @@ const AdminPage = () => {
                 <TableHead>Schedule</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Phone Number</TableHead>
+                <TableHead>Role</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
+             {trainers.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={8} className="text-center text-muted-foreground">No trainers found.</TableCell>
+                </TableRow>
+              )}
               {trainers.map((trainer) => (
                 <TableRow key={trainer.id}>
-                  <TableCell>{trainer.name}</TableCell>
+                  <TableCell className="font-medium">{trainer.name}</TableCell>
                   <TableCell>{trainer.specialization}</TableCell>
                   <TableCell>{trainer.experience} years</TableCell>
                   <TableCell>{trainer.schedule}</TableCell>
                   <TableCell>{trainer.email}</TableCell>
-                  <TableCell>{trainer.phoneNumber}</TableCell>
-                  <TableCell className="text-right">
-                    <Button variant="secondary" size="sm" onClick={() => handleEditTrainer(trainer)}>
-                      <Edit className="mr-2 h-4 w-4"/>
+                  <TableCell>{trainer.phoneNumber || 'N/A'}</TableCell>
+                   <TableCell>
+                       <Badge variant={trainer.role === 'admin' ? 'destructive' : 'default'}>
+                           {trainer.role.charAt(0).toUpperCase() + trainer.role.slice(1)}
+                       </Badge>
+                   </TableCell>
+                  <TableCell className="text-right space-x-2">
+                    <Button variant="secondary" size="sm" onClick={() => handleOpenTrainerDialog(trainer)}>
+                      <Edit className="mr-1 h-4 w-4"/>
                       Edit
                     </Button>
                     <Button variant="destructive" size="sm" onClick={() => handleDeleteTrainer(trainer.id)}>
-                      <Trash2 className="mr-2 h-4 w-4"/>
+                      <Trash2 className="mr-1 h-4 w-4"/>
                       Delete
                     </Button>
                   </TableCell>
@@ -393,16 +607,16 @@ const AdminPage = () => {
       </Card>
 
       {/* Invoice Management */}
-      <Card>
+       <Card className="mb-8 shadow-md">
         <CardHeader>
           <CardTitle>Invoices</CardTitle>
-          <CardDescription>Manage user invoices and payment status.</CardDescription>
+          <CardDescription>Overview of all generated invoices.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>User ID</TableHead>
+                 <TableHead>User Name</TableHead>
                 <TableHead>Amount</TableHead>
                 <TableHead>Due Date</TableHead>
                 <TableHead>Status</TableHead>
@@ -411,136 +625,142 @@ const AdminPage = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {invoices.map((invoice) => (
-                <TableRow key={invoice.id}>
-                  <TableCell>{invoice.userId}</TableCell>
-                  <TableCell>${invoice.amount}</TableCell>
-                  <TableCell>{invoice.dueDate}</TableCell>
-                  <TableCell>
-                    {invoice.paid ? (
-                      <Badge variant="default">Paid</Badge>
-                    ) : (
-                      <Badge variant="secondary">Unpaid</Badge>
-                    )}
-                  </TableCell>
-                  <TableCell>{invoice.paymentDate || "N/A"}</TableCell>
-                  <TableCell className="text-right">
-                    {!invoice.paid && (
-                      <Dialog>
-                        <DialogTrigger asChild>
-                          <Button variant="outline" size="sm">
-                            Mark as Paid
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                          <DialogHeader>
-                            <DialogTitle>Mark Invoice as Paid</DialogTitle>
-                            <DialogDescription>
-                              Select the payment date for this invoice.
-                            </DialogDescription>
-                          </DialogHeader>
-                          <div className="grid gap-4 py-4">
-                            <div className="grid grid-cols-4 items-center gap-4">
-                              <Label htmlFor="paymentDate" className="text-right">
-                                Payment Date
-                              </Label>
-                              <Input
-                                id="paymentDate"
-                                type="date"
-                                onChange={(e) => {
-                                  setPaymentDate(e.target.value);
-                                }}
-                                className="col-span-3"
-                              />
-                            </div>
-                          </div>
-                          <CardFooter>
-                            <Button onClick={() => {
-                              handleMarkAsPaid(invoice.id, paymentDate);
-                            }}>Mark as Paid</Button>
-                          </CardFooter>
-                        </DialogContent>
-                      </Dialog>
-                    )}
-                  </TableCell>
+             {invoices.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center text-muted-foreground">No invoices found.</TableCell>
                 </TableRow>
-              ))}
+              )}
+              {invoices.map((invoice) => {
+                  const userName = users.find(u => u.id === invoice.userId)?.name || 'Unknown User';
+                  return (
+                    <TableRow key={invoice.id} className={cn(!invoice.paid && "text-destructive")}>
+                     <TableCell>{userName} ({invoice.userId.substring(0, 6)}...)</TableCell>
+                      <TableCell>${invoice.amount.toFixed(2)}</TableCell>
+                      <TableCell>{invoice.dueDate}</TableCell>
+                      <TableCell>
+                        {invoice.paid ? (
+                          <Badge variant="default">Paid</Badge>
+                        ) : (
+                          <Badge variant="secondary">Unpaid</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell>{invoice.paymentDate || "N/A"}</TableCell>
+                      <TableCell className="text-right">
+                        {!invoice.paid && (
+                           <Button variant="outline" size="sm" onClick={() => handleOpenMarkPaidDialog(invoice)}>
+                                Mark as Paid
+                           </Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
 
        {/* Carousel Image Management */}
-      <Card className="mb-5">
-        <CardHeader>
-          <CardTitle>Carousel Images</CardTitle>
-          <CardDescription>Manage images displayed in the homepage carousel.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex justify-end">
-            <Button onClick={handleOpenImageDialog}>
+      <Card className="mb-5 shadow-md">
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle>Homepage Carousel</CardTitle>
+            <CardDescription>Manage images for the homepage slider.</CardDescription>
+          </div>
+          <Button onClick={handleOpenImageDialog}>
               <ImagePlus className="mr-2 h-4 w-4"/>
               Add Image
             </Button>
-          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
 
           <DragDropContext onDragEnd={handleOnDragEnd}>
             <Droppable droppableId="carouselImages">
               {(provided) => (
-                <Table {...provided.droppableProps} ref={provided.innerRef}>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Position</TableHead>
-                      <TableHead>Image URL</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
+                <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-2">
+                     {carouselImages.length === 0 && (
+                        <p className="text-center text-muted-foreground py-4">No carousel images added yet.</p>
+                     )}
                     {carouselImages.map((image, index) => (
                       <Draggable key={image.id} draggableId={image.id} index={index}>
                         {(provided) => (
-                          <TableRow
+                           <Card
                             ref={provided.innerRef}
                             {...provided.draggableProps}
                             {...provided.dragHandleProps}
-                          >
-                            <TableCell>{image.position}</TableCell>
-                            <TableCell>{image.url}</TableCell>
-                            <TableCell className="text-right">
-                              <Button variant="destructive" size="sm" onClick={() => handleDeleteImage(image.id)}>
-                                <Trash2 className="mr-2 h-4 w-4"/>
+                            className="flex items-center p-3 justify-between bg-muted dark:bg-muted/50"
+                           >
+                             <div className="flex items-center space-x-3">
+                               <span className="font-mono text-sm text-muted-foreground w-6 text-center">{image.position}.</span>
+                               <img src={image.url} alt={`Carousel ${image.position}`} className="w-16 h-8 object-cover rounded" />
+                               <span className="text-sm truncate max-w-xs">{image.url}</span>
+                             </div>
+
+                            <Button variant="destructive" size="sm" onClick={(e) => { e.stopPropagation(); handleDeleteImage(image.id);}}>
+                                <Trash2 className="mr-1 h-4 w-4"/>
                                 Delete
-                              </Button>
-                            </TableCell>
-                          </TableRow>
+                            </Button>
+                          </Card>
                         )}
                       </Draggable>
                     ))}
                     {provided.placeholder}
-                  </TableBody>
-                </Table>
+                 </div>
               )}
             </Droppable>
           </DragDropContext>
         </CardContent>
       </Card>
 
+      {/* --- DIALOGS --- */}
+
       {/* Trainer Dialog */}
       <Dialog open={openTrainerDialog} onOpenChange={setOpenTrainerDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editingTrainer ? "Edit Trainer" : "Add Trainer"}</DialogTitle>
+            <DialogTitle>{editingTrainer ? "Edit Trainer/Admin" : "Add Trainer/Admin"}</DialogTitle>
             <DialogDescription>
-              {editingTrainer ? "Edit trainer details." : "Create a new trainer."}
+              {editingTrainer ? "Update the details below." : "Create a new trainer or admin account."}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
+            {/* Name */}
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="name" className="text-right">
+              <Label htmlFor="trainerName" className="text-right">
                 Name
               </Label>
-              <Input id="name" value={trainerName} onChange={(e) => setTrainerName(e.target.value)} className="col-span-3"/>
+              <Input id="trainerName" value={trainerName} onChange={(e) => setTrainerName(e.target.value)} className="col-span-3" required/>
             </div>
+            {/* Email */}
+             <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="trainerEmail" className="text-right">
+                Email
+              </Label>
+              <Input
+                id="trainerEmail"
+                type="email"
+                value={trainerEmail}
+                onChange={(e) => setTrainerEmail(e.target.value)}
+                className="col-span-3"
+                required
+              />
+            </div>
+             {/* Password */}
+             <div className="grid grid-cols-4 items-center gap-4">
+               <Label htmlFor="trainerPassword" className="text-right">
+                 Password
+               </Label>
+               <Input
+                 id="trainerPassword"
+                 type="password"
+                 value={trainerPassword}
+                 onChange={(e) => setTrainerPassword(e.target.value)}
+                 className="col-span-3"
+                 placeholder={editingTrainer ? "Leave blank to keep current password" : "Required"}
+                 required={!editingTrainer} // Required only when creating
+               />
+             </div>
+            {/* Specialization */}
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="specialization" className="text-right">
                 Specialization
@@ -550,20 +770,25 @@ const AdminPage = () => {
                 value={trainerSpecialization}
                 onChange={(e) => setTrainerSpecialization(e.target.value)}
                 className="col-span-3"
+                 required
               />
             </div>
+            {/* Experience */}
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="experience" className="text-right">
-                Experience
+                Experience (Yrs)
               </Label>
               <Input
                 id="experience"
                 type="number"
+                 min="0"
                 value={trainerExperience}
                 onChange={(e) => setTrainerExperience(e.target.value)}
                 className="col-span-3"
+                 required
               />
             </div>
+            {/* Schedule */}
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="schedule" className="text-right">
                 Schedule
@@ -573,23 +798,14 @@ const AdminPage = () => {
                 value={trainerSchedule}
                 onChange={(e) => setTrainerSchedule(e.target.value)}
                 className="col-span-3"
+                placeholder="e.g., Mon-Fri 9am-5pm"
+                 required
               />
             </div>
+            {/* Phone Number */}
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="email" className="text-right">
-                Email
-              </Label>
-              <Input
-                id="trainerEmail"
-                type="email"
-                value={trainerEmail}
-                onChange={(e) => setTrainerEmail(e.target.value)}
-                className="col-span-3"
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="phoneNumber" className="text-right">
-                Phone Number
+              <Label htmlFor="trainerPhoneNumber" className="text-right">
+                Phone (Optional)
               </Label>
               <Input
                 id="trainerPhoneNumber"
@@ -599,11 +815,12 @@ const AdminPage = () => {
                 className="col-span-3"
               />
             </div>
+            {/* Role */}
              <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="role" className="text-right">
                 Role
               </Label>
-              <Select value={trainerRole} onValueChange={(value) => setTrainerRole(value)}>
+              <Select value={trainerRole} onValueChange={(value) => setTrainerRole(value)} required>
                 <SelectTrigger className="col-span-3">
                   <SelectValue placeholder="Select role" />
                 </SelectTrigger>
@@ -614,9 +831,12 @@ const AdminPage = () => {
               </Select>
             </div>
           </div>
-          <CardFooter>
-            <Button onClick={handleSaveTrainer}>Save Trainer</Button>
-          </CardFooter>
+          <DialogFooter>
+             <DialogClose asChild>
+                <Button type="button" variant="outline">Cancel</Button>
+             </DialogClose>
+            <Button onClick={handleSaveTrainer}>Save</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -626,20 +846,23 @@ const AdminPage = () => {
           <DialogHeader>
             <DialogTitle>Generate Invoice</DialogTitle>
             <DialogDescription>
-              Enter the invoice details for {selectedUserForInvoice?.name}.
+              Create a new invoice for {selectedUserForInvoice?.name}.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="amount" className="text-right">
-                Amount
+                Amount ($)
               </Label>
               <Input
                 id="amount"
                 type="number"
+                min="0.01"
+                step="0.01"
                 value={invoiceAmount}
                 onChange={(e) => setInvoiceAmount(e.target.value)}
                 className="col-span-3"
+                required
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
@@ -651,41 +874,84 @@ const AdminPage = () => {
                 type="date"
                 value={invoiceDueDate}
                 onChange={(e) => setInvoiceDueDate(e.target.value)}
+                 min={new Date().toISOString().split("T")[0]} // Prevent past due dates
                 className="col-span-3"
+                required
               />
             </div>
           </div>
-          <CardFooter>
+          <DialogFooter>
+             <DialogClose asChild>
+                <Button type="button" variant="outline">Cancel</Button>
+             </DialogClose>
             <Button onClick={handleGenerateInvoice}>Generate Invoice</Button>
-          </CardFooter>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
+      {/* Mark as Paid Dialog */}
+      <Dialog open={openMarkPaidDialog} onOpenChange={setOpenMarkPaidDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Mark Invoice as Paid</DialogTitle>
+             <DialogDescription>
+              Confirm payment for invoice #{invoiceToMarkPaid?.id.substring(0, 8)}... for ${invoiceToMarkPaid?.amount.toFixed(2)}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="paymentDate" className="text-right">
+                Payment Date
+              </Label>
+              <Input
+                id="paymentDate"
+                type="date"
+                value={paymentDate}
+                onChange={(e) => setPaymentDate(e.target.value)}
+                 max={new Date().toISOString().split("T")[0]} // Cannot be future date
+                className="col-span-3"
+                 required
+              />
+            </div>
+          </div>
+          <DialogFooter>
+             <DialogClose asChild>
+               <Button type="button" variant="outline">Cancel</Button>
+             </DialogClose>
+            <Button onClick={handleMarkAsPaid}>Mark as Paid</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+
       {/* Payment History Dialog */}
       <Dialog open={openPaymentHistoryDialog} onOpenChange={setOpenPaymentHistoryDialog}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-[625px]">
           <DialogHeader>
             <DialogTitle>Payment History</DialogTitle>
             <DialogDescription>
-              Payment history for {selectedUserPaymentHistory?.name}.
+              Showing paid invoices for {selectedUserPaymentHistory?.name}.
             </DialogDescription>
           </DialogHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-4 max-h-[60vh] overflow-y-auto">
             <Table>
               <TableHeader>
                 <TableRow>
+                 <TableHead>Invoice ID</TableHead>
                   <TableHead>Amount</TableHead>
                   <TableHead>Due Date</TableHead>
                   <TableHead>Payment Date</TableHead>
-                  <TableHead>Status</TableHead>
+                   <TableHead>Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {invoices
                   .filter((invoice) => invoice.userId === selectedUserPaymentHistory?.id && invoice.paid)
+                  .sort((a, b) => new Date(b.paymentDate || 0).getTime() - new Date(a.paymentDate || 0).getTime()) // Sort by most recent paid
                   .map((invoice) => (
                     <TableRow key={invoice.id}>
-                      <TableCell>${invoice.amount}</TableCell>
+                      <TableCell className="font-mono text-xs">{invoice.id.substring(0,8)}...</TableCell>
+                      <TableCell>${invoice.amount.toFixed(2)}</TableCell>
                       <TableCell>{invoice.dueDate}</TableCell>
                       <TableCell>{invoice.paymentDate}</TableCell>
                       <TableCell>
@@ -693,30 +959,40 @@ const AdminPage = () => {
                       </TableCell>
                     </TableRow>
                   ))}
+                 {invoices.filter((invoice) => invoice.userId === selectedUserPaymentHistory?.id && invoice.paid).length === 0 && (
+                    <TableRow>
+                        <TableCell colSpan={5} className="text-center text-muted-foreground">No paid invoices found for this user.</TableCell>
+                    </TableRow>
+                 )}
               </TableBody>
             </Table>
           </CardContent>
+           <DialogFooter>
+                <DialogClose asChild>
+                    <Button type="button" variant="outline">Close</Button>
+                </DialogClose>
+           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* User Dialog */}
+      {/* Add User Dialog (Admin creates active users) */}
       <Dialog open={openUserDialog} onOpenChange={setOpenUserDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Add User</DialogTitle>
+            <DialogTitle>Add New User</DialogTitle>
             <DialogDescription>
-              Create a new user. Users are always assigned the 'user' role.
+              Create a new user account. They will be active immediately.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="name" className="text-right">
+              <Label htmlFor="userName" className="text-right">
                 Name
               </Label>
-              <Input id="name" value={userName} onChange={(e) => setUserName(e.target.value)} className="col-span-3"/>
+              <Input id="userName" value={userName} onChange={(e) => setUserName(e.target.value)} className="col-span-3" required />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="email" className="text-right">
+              <Label htmlFor="userEmail" className="text-right">
                 Email
               </Label>
               <Input
@@ -725,11 +1001,25 @@ const AdminPage = () => {
                 value={userEmail}
                 onChange={(e) => setUserEmail(e.target.value)}
                 className="col-span-3"
+                required
               />
             </div>
+             <div className="grid grid-cols-4 items-center gap-4">
+               <Label htmlFor="userPassword" className="text-right">
+                 Password
+               </Label>
+               <Input
+                 id="userPassword"
+                 type="password"
+                 value={userPassword}
+                 onChange={(e) => setUserPassword(e.target.value)}
+                 className="col-span-3"
+                 required
+               />
+             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="phoneNumber" className="text-right">
-                Phone Number
+              <Label htmlFor="userPhoneNumber" className="text-right">
+                Phone (Optional)
               </Label>
               <Input
                 id="userPhoneNumber"
@@ -740,19 +1030,22 @@ const AdminPage = () => {
               />
             </div>
           </div>
-          <CardFooter>
-            <Button onClick={handleSaveUser}>Save User</Button>
-          </CardFooter>
+          <DialogFooter>
+             <DialogClose asChild>
+                <Button type="button" variant="outline">Cancel</Button>
+             </DialogClose>
+            <Button onClick={handleSaveUser}>Add User</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
-       {/* Image Dialog */}
+       {/* Add Image Dialog */}
       <Dialog open={openImageDialog} onOpenChange={setOpenImageDialog}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Add Image to Carousel</DialogTitle>
             <DialogDescription>
-              Enter the URL of the image to add to the homepage carousel.
+              Enter the publicly accessible URL of the image.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
@@ -765,13 +1058,18 @@ const AdminPage = () => {
                 type="url"
                 value={newImageUrl}
                 onChange={(e) => setNewImageUrl(e.target.value)}
+                 placeholder="https://example.com/image.jpg"
                 className="col-span-3"
+                required
               />
             </div>
           </div>
-          <CardFooter>
+          <DialogFooter>
+            <DialogClose asChild>
+                <Button type="button" variant="outline">Cancel</Button>
+            </DialogClose>
             <Button onClick={handleAddImage}>Add Image</Button>
-          </CardFooter>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

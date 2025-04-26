@@ -1,36 +1,39 @@
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
 
 generator client {
   provider = "prisma-client-js"
 }
 
-datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
-}
-
 model User {
-  id        String   @id @default(uuid())
-  name      String
-  email     String   @unique
-  role      String   @default("user")
+  id          String  @id @default(cuid())
+  name        String
+  email       String  @unique
+  password    String // Store hashed passwords
+  role        String  @default("user")
   phoneNumber String?
-  invoices  Invoice[]
+  status      String  @default("pending") // Add status field: pending, active
+  invoices    Invoice[]
+  bookings    ClassBooking[]
 }
 
 model Trainer {
-  id             String   @id @default(uuid())
-  name           String
-  specialization String
-  experience     Int
-  schedule       String
-  email          String   @unique
-  phoneNumber    String?
-  role           String   @default("trainer")
-  classes        Class[]
+  id              String  @id @default(cuid())
+  name            String
+  specialization  String
+  experience      Int
+  schedule        String
+  email           String  @unique
+  password        String // Store hashed passwords
+  phoneNumber     String?
+  role            String  @default("trainer") // Can be 'trainer' or 'admin'
+  classes         Class[]
 }
 
 model Class {
-  id            String   @id @default(uuid())
+  id            String        @id @default(cuid())
   name          String
   category      String
   date          String
@@ -39,21 +42,33 @@ model Class {
   capacity      Int
   availableSlots Int
   trainerId     String
-  trainer       Trainer  @relation(fields: [trainerId], references: [id])
+  trainer       Trainer       @relation(fields: [trainerId], references: [id])
+  bookings      ClassBooking[]
+}
+
+model ClassBooking {
+  id        String   @id @default(cuid())
+  classId   String
+  class     Class    @relation(fields: [classId], references: [id])
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  bookingDate DateTime @default(now())
+
+  @@unique([classId, userId]) // Ensure a user can book a class only once
 }
 
 model Invoice {
-  id          String   @id @default(uuid())
+  id          String  @id @default(cuid())
   userId      String
-  user        User     @relation(fields: [userId], references: [id])
+  user        User    @relation(fields: [userId], references: [id])
   amount      Float
   dueDate     String
-  paid        Boolean  @default(false)
+  paid        Boolean @default(false)
   paymentDate String?
 }
 
 model CarouselImage {
-  id       String @id @default(uuid())
+  id       String @id @default(cuid())
   url      String
-  position Int    @default(0)
+  position Int
 }

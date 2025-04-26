@@ -12,7 +12,8 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "db:push": "prisma db push",
-    "db:generate": "prisma generate"
+    "db:generate": "prisma generate",
+    "postinstall": "prisma generate"
   },
   "dependencies": {
     "@genkit-ai/googleai": "^1.0.4",
@@ -41,6 +42,7 @@
     "@radix-ui/react-tooltip": "^1.1.8",
     "@tanstack-query-firebase/react": "^1.0.5",
     "@tanstack/react-query": "^5.66.0",
+    "bcryptjs": "^2.4.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^3.6.0",
@@ -61,8 +63,10 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20",
     "@types/react": "^18",
+    "@types/react-beautiful-dnd": "^13.1.8",
     "@types/react-dom": "^18",
     "autoprefixer": "^10.0.1",
     "eslint": "^8",

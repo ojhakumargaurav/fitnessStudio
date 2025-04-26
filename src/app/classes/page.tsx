@@ -1,103 +1,290 @@
+
 'use client';
 
 import {useState, useEffect} from 'react';
-import {Class} from '@/services/class';
-import {getClasses, bookClass, cancelClass} from '@/services/class';
+import {Class, ClassBooking} from '@/services/class'; // Import ClassBooking
+import {getClasses, bookClass, cancelClass, getUserBookings} from '@/actions/class'; // Use server actions
 import {Calendar} from '@/components/ui/calendar';
 import {Button} from '@/components/ui/button';
-import {Card, CardContent, CardHeader, CardTitle} from '@/components/ui/card';
+import {Card, CardContent, CardHeader, CardTitle, CardDescription} from '@/components/ui/card'; // Added CardDescription
 import {useToast} from '@/hooks/use-toast';
 import {cn} from '@/lib/utils';
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '@/components/ui/select';
 import {useAuth} from '@/hooks/useAuth'; // Import useAuth hook
+import { UserStatus } from '@/actions/user'; // Import UserStatus enum
 
 const ClassesPage = () => {
-  const [classes, setClasses] = useState<Class[]>([]);
+  const [allClasses, setAllClasses] = useState<Class[]>([]);
+  const [userBookings, setUserBookings] = useState<ClassBooking[]>([]);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [filteredClasses, setFilteredClasses] = useState<Class[]>([]);
   const [categoryFilter, setCategoryFilter] = useState<string>('All');
+  const [isLoading, setIsLoading] = useState(true);
   const {toast} = useToast();
-  const {user} = useAuth(); // Use the useAuth hook
+  const {user, isLoading: isAuthLoading} = useAuth(); // Use the useAuth hook and its loading state
 
+  // Fetch classes and user bookings
   useEffect(() => {
-    const fetchClasses = async () => {
-      const allClasses = await getClasses();
-      setClasses(allClasses);
+    const fetchData = async () => {
+      setIsLoading(true);
+      try {
+        const [fetchedClasses, fetchedBookings] = await Promise.all([
+          getClasses(),
+          user?.id ? getUserBookings(user.id) : Promise.resolve([]) // Fetch bookings only if user is logged in
+        ]);
+        setAllClasses(fetchedClasses);
+        setUserBookings(fetchedBookings);
+      } catch (error) {
+        console.error("Error fetching class data:", error);
+        toast({ title: "Error", description: "Failed to load class information.", variant: "destructive" });
+      } finally {
+        setIsLoading(false);
+      }
     };
 
-    fetchClasses();
-  }, []);
+    if (!isAuthLoading) { // Only fetch data once auth state is known
+       fetchData();
+    }
+  }, [user, isAuthLoading, toast]); // Rerun if user changes
 
+  // Filter classes based on date and category
   useEffect(() => {
     if (selectedDate) {
       const formattedDate = selectedDate.toISOString().split('T')[0];
-      const dailyClasses = classes.filter((cls) => cls.date === formattedDate);
+      let dailyClasses = allClasses.filter((cls) => cls.date === formattedDate);
 
-      if (categoryFilter === 'All') {
-        setFilteredClasses(dailyClasses);
-      } else {
-        setFilteredClasses(dailyClasses.filter((cls) => cls.category === categoryFilter));
+      if (categoryFilter !== 'All') {
+        dailyClasses = dailyClasses.filter((cls) => cls.category === categoryFilter);
       }
+      setFilteredClasses(dailyClasses);
+    } else {
+      setFilteredClasses([]); // Clear if no date selected
     }
-  }, [classes, selectedDate, categoryFilter]);
+  }, [allClasses, selectedDate, categoryFilter]);
 
   const handleBookClass = async (classId: string) => {
-    const success = await bookClass(classId);
-    if (success) {
-      setClasses((prevClasses) =>
-        prevClasses.map((cls) =>
-          cls.id === classId ? {...cls, availableSlots: Math.max(0, cls.availableSlots - 1)} : cls
-        )
-      );
-      toast({
-        title: 'Success!',
-        description: 'You have successfully booked the class.',
-      });
-    } else {
-      toast({
-        title: 'Error',
-        description: 'Failed to book the class. Please try again.',
-        variant: 'destructive',
-      });
+    if (!user) return; // Should not happen if button is disabled, but good practice
+    if (user.role === 'user' && user.status !== UserStatus.ACTIVE) {
+        toast({
+            title: 'Booking Restricted',
+            description: 'Your account is pending approval. Please contact admin to book classes.',
+            variant: 'destructive'
+        });
+        return;
+    }
+
+    // Check if already booked
+    if (userBookings.some(booking => booking.classId === classId)) {
+        toast({ title: "Already Booked", description: "You have already booked this class.", variant: "default" });
+        return;
+    }
+
+     // Check for available slots before attempting to book
+    const targetClass = allClasses.find(cls => cls.id === classId);
+    if (!targetClass || targetClass.availableSlots <= 0) {
+        toast({ title: "Class Full", description: "Sorry, this class is already full.", variant: "destructive" });
+        // Optionally re-fetch classes to ensure UI is up-to-date
+        // const updatedClasses = await getClasses(); setAllClasses(updatedClasses);
+        return;
+    }
+
+
+    try {
+        const result = await bookClass(classId, user.id);
+        if (result.success && result.booking) {
+            // Optimistically update UI
+            setAllClasses((prevClasses) =>
+                prevClasses.map((cls) =>
+                    cls.id === classId ? {...cls, availableSlots: Math.max(0, cls.availableSlots - 1)} : cls
+                )
+            );
+            setUserBookings([...userBookings, result.booking]); // Add to user's bookings
+            toast({
+                title: 'Success!',
+                description: 'You have successfully booked the class.',
+            });
+        } else {
+             // If booking failed, update the UI to reflect actual availability
+             const currentClasses = await getClasses();
+             setAllClasses(currentClasses);
+             toast({
+                title: 'Error',
+                description: result.error || 'Failed to book the class. It might be full.',
+                variant: 'destructive',
+            });
+        }
+    } catch (error: any) {
+        // Handle potential network errors or unexpected issues
+        console.error("Booking error:", error);
+        toast({
+            title: 'Error',
+            description: 'An unexpected error occurred while booking.',
+            variant: 'destructive',
+        });
+         // Refresh class list on error as well
+        const currentClasses = await getClasses();
+        setAllClasses(currentClasses);
     }
   };
 
   const handleCancelClass = async (classId: string) => {
-    const success = await cancelClass(classId);
-    if (success) {
-      setClasses((prevClasses) =>
-        prevClasses.map((cls) =>
-          cls.id === classId ? {...cls, availableSlots: cls.availableSlots + 1} : cls
-        )
-      );
-      toast({
-        title: 'Success!',
-        description: 'You have successfully cancelled the class.',
-      });
-    } else {
-      toast({
-        title: 'Error',
-        description: 'Failed to cancel the class. Please try again.',
-        variant: 'destructive',
-      });
+     if (!user) return; // Should not happen
+
+    const bookingToCancel = userBookings.find(booking => booking.classId === classId);
+     if (!bookingToCancel) {
+        toast({ title: "Not Booked", description: "You haven't booked this class.", variant: "default" });
+        return; // Not booked
+     }
+
+
+    try {
+        const result = await cancelClass(bookingToCancel.id, user.id); // Pass booking ID and user ID
+        if (result.success) {
+            // Optimistically update UI
+            setAllClasses((prevClasses) =>
+                prevClasses.map((cls) =>
+                    cls.id === classId ? {...cls, availableSlots: cls.availableSlots + 1} : cls
+                )
+            );
+             setUserBookings(userBookings.filter(booking => booking.id !== bookingToCancel.id)); // Remove from user's bookings
+            toast({
+                title: 'Success!',
+                description: 'Your booking has been cancelled.',
+            });
+        } else {
+             // Refetch data on failure to ensure consistency
+             const [fetchedClasses, fetchedBookings] = await Promise.all([getClasses(), getUserBookings(user.id)]);
+             setAllClasses(fetchedClasses);
+             setUserBookings(fetchedBookings);
+             toast({
+                title: 'Error',
+                description: result.error || 'Failed to cancel the booking.',
+                variant: 'destructive',
+            });
+        }
+    } catch (error: any) {
+        console.error("Cancellation error:", error);
+        toast({
+            title: 'Error',
+            description: 'An unexpected error occurred during cancellation.',
+            variant: 'destructive',
+        });
+        // Refetch data on error
+        const [fetchedClasses, fetchedBookings] = await Promise.all([getClasses(), getUserBookings(user.id)]);
+        setAllClasses(fetchedClasses);
+        setUserBookings(fetchedBookings);
     }
   };
+
 
   const handleDateSelect = (date: Date | undefined) => {
     setSelectedDate(date);
   };
 
-  if (!user) {
-    return <div className="container mx-auto py-10">Please log in to view classes.</div>;
+  const isUserBooked = (classId: string): boolean => {
+      return userBookings.some(booking => booking.classId === classId);
   }
 
+   if (isAuthLoading || isLoading) {
+     return <div className="container mx-auto py-10">Loading classes...</div>;
+   }
+
+
+   if (!user) {
+     return (
+         <div className="container mx-auto py-10 flex flex-col items-center">
+            <p className="text-lg mb-4">Please log in to view and book classes.</p>
+             <Button onClick={() => router.push('/login')}>Login</Button>
+         </div>
+     );
+   }
+
+  // Specific message for pending users
+   if (user && user.role === 'user' && user.status === UserStatus.PENDING) {
+       return (
+          <div className="container mx-auto py-10 text-center">
+             <h1 className="text-2xl font-semibold mb-4 text-primary">Account Pending Approval</h1>
+             <p className="text-muted-foreground mb-6">
+               Your account is currently awaiting administrator approval.
+               You can browse classes, but booking will be enabled once your account is activated.
+             </p>
+              <p className="text-muted-foreground">Please check back later or contact support if you have questions.</p>
+              {/* Keep calendar and class list visible for browsing */}
+              {/* Calendar */}
+                <Card className="w-full md:w-auto mx-auto my-6 inline-block align-top">
+                 <CardHeader>
+                    <CardTitle>Select Date</CardTitle>
+                 </CardHeader>
+                 <CardContent>
+                    <Calendar mode="single" selected={selectedDate} onSelect={handleDateSelect} />
+                 </CardContent>
+                </Card>
+
+                {/* Class List */}
+                <div className="w-full mt-6">
+                  {/* Filtering UI */}
+                  <div className="flex flex-col sm:flex-row justify-between items-center mb-4">
+                    <h2 className="text-xl font-semibold text-foreground mb-2 sm:mb-0">
+                      {selectedDate ? `Available Classes for ${selectedDate.toLocaleDateString()}` : 'Select a date'}
+                    </h2>
+                     <Select onValueChange={(value) => setCategoryFilter(value)} defaultValue="All">
+                       <SelectTrigger className="w-full sm:w-[200px]">
+                         <SelectValue placeholder="Filter by category" />
+                       </SelectTrigger>
+                       <SelectContent>
+                         <SelectItem value="All">All Categories</SelectItem>
+                         <SelectItem value="Yoga">Yoga</SelectItem>
+                         <SelectItem value="Strength Training">Strength Training</SelectItem>
+                         <SelectItem value="Cardio">Cardio</SelectItem>
+                         {/* Add other categories as needed */}
+                       </SelectContent>
+                     </Select>
+                  </div>
+                  {/* Class Cards */}
+                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    {filteredClasses.length > 0 ? (
+                      filteredClasses.map((cls) => (
+                        <Card key={cls.id} className="shadow-md">
+                          <CardHeader>
+                            <CardTitle className="flex justify-between items-start">
+                              <span>{cls.name}</span>
+                              <Badge
+                                variant={cls.availableSlots === 0 ? 'destructive' : 'secondary'}
+                                className="text-xs whitespace-nowrap"
+                              >
+                                {cls.availableSlots === 0 ? 'Full' : `${cls.availableSlots} slots left`}
+                              </Badge>
+                            </CardTitle>
+                             <CardDescription>Category: {cls.category}</CardDescription> {/* Added description */}
+                          </CardHeader>
+                          <CardContent>
+                            <p className="text-sm text-muted-foreground">Time: {cls.startTime} - {cls.endTime}</p>
+                            <div className="flex justify-end mt-4">
+                               <Button disabled>Booking Disabled</Button>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))
+                    ) : (
+                      <p className="text-muted-foreground md:col-span-2 lg:col-span-3 text-center py-4">
+                         {selectedDate ? 'No classes available for the selected date and category.' : 'Please select a date to see classes.'}
+                      </p>
+                    )}
+                  </div>
+                </div>
+          </div>
+       );
+   }
+
+
+  // Main view for active users and admins/trainers
   return (
     <div className="container mx-auto py-10">
-      <h1 className="text-3xl font-bold mb-5 text-primary">Available Classes</h1>
+      <h1 className="text-3xl font-bold mb-6 text-primary">Available Classes</h1>
 
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col md:flex-row gap-8">
         {/* Calendar */}
-        <Card className="w-full">
+        <Card className="w-full md:w-auto shadow-md">
           <CardHeader>
             <CardTitle>Select Date</CardTitle>
           </CardHeader>
@@ -108,65 +295,82 @@ const ClassesPage = () => {
 
         {/* Class List */}
         <div className="w-full">
+          {/* Filtering UI */}
           <div className="flex flex-col sm:flex-row justify-between items-center mb-4">
             <h2 className="text-2xl font-semibold text-foreground mb-2 sm:mb-0">
-              {selectedDate
-                ? `Classes for ${selectedDate.toLocaleDateString()}`
-                : 'Select a date to view classes'}
+              {selectedDate ? `Classes for ${selectedDate.toLocaleDateString()}` : 'Select a date'}
             </h2>
-            <Select onValueChange={(value) => setCategoryFilter(value)}>
-              <SelectTrigger className="w-full sm:w-[180px]">
-                <SelectValue placeholder="Filter by category" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="All">All Categories</SelectItem>
-                <SelectItem value="Yoga">Yoga</SelectItem>
-                <SelectItem value="Strength Training">Strength Training</SelectItem>
-                <SelectItem value="Cardio">Cardio</SelectItem>
-              </SelectContent>
-            </Select>
+             <Select onValueChange={(value) => setCategoryFilter(value)} defaultValue="All">
+               <SelectTrigger className="w-full sm:w-[200px]">
+                 <SelectValue placeholder="Filter by category" />
+               </SelectTrigger>
+               <SelectContent>
+                 <SelectItem value="All">All Categories</SelectItem>
+                 <SelectItem value="Yoga">Yoga</SelectItem>
+                 <SelectItem value="Strength Training">Strength Training</SelectItem>
+                 <SelectItem value="Cardio">Cardio</SelectItem>
+                  {/* Add other categories as needed */}
+               </SelectContent>
+             </Select>
           </div>
+          {/* Class Cards */}
+          <div className="grid gap-4 md:grid-cols-1 lg:grid-cols-2">
+             {isLoading && <p>Loading classes...</p>}{/* Add loading indicator */}
+             {!isLoading && filteredClasses.length === 0 && (
+                 <p className="text-muted-foreground lg:col-span-2 text-center py-4">
+                     {selectedDate ? 'No classes available for the selected date and category.' : 'Please select a date to see classes.'}
+                 </p>
+             )}
+            {!isLoading && filteredClasses.length > 0 &&
+              filteredClasses.map((cls) => {
+                  const booked = isUserBooked(cls.id);
+                  const canBook = cls.availableSlots > 0 && !booked;
+                  const isFull = cls.availableSlots <= 0;
 
-          <div className="grid gap-4">
-            {filteredClasses.length > 0 ? (
-              filteredClasses.map((cls) => (
-                <Card key={cls.id}>
-                  <CardHeader>
-                    <CardTitle className="flex justify-between items-center">
-                      {cls.name}
-                      <span
-                        className={cn(
-                          'ml-2 rounded-md px-2 py-1 text-xs font-medium',
-                          cls.availableSlots === 0 ? 'bg-destructive text-destructive-foreground' : 'bg-secondary text-secondary-foreground'
-                        )}
-                      >
-                        {cls.availableSlots === 0 ? 'Full' : `${cls.availableSlots} slots`}
-                      </span>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p>Category: {cls.category}</p>
-                    <p>Time: {cls.startTime} - {cls.endTime}</p>
-                    <div className="flex justify-end mt-4">
-                      {cls.availableSlots > 0 && user.role === 'user' ? (
-                        <Button onClick={() => handleBookClass(cls.id)}>Book Class</Button>
-                      ) : (
-                        <Button variant="destructive" disabled>
-                          Class Full
-                        </Button>
-                      )}
-                      {user.role === 'user' && (
-                        <Button variant="outline" onClick={() => handleCancelClass(cls.id)} className="ml-2">
-                          Cancel Booking
-                        </Button>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))
-            ) : (
-              <p>No classes available for the selected date and category.</p>
-            )}
+                  return (
+                    <Card key={cls.id} className="shadow-md">
+                        <CardHeader>
+                            <CardTitle className="flex justify-between items-start">
+                            <span>{cls.name}</span>
+                            <Badge
+                                variant={isFull ? 'destructive' : 'secondary'}
+                                className="text-xs whitespace-nowrap"
+                            >
+                                {isFull ? 'Full' : `${cls.availableSlots} slots left`}
+                            </Badge>
+                            </CardTitle>
+                             <CardDescription>Category: {cls.category}</CardDescription> {/* Added description */}
+                        </CardHeader>
+                      <CardContent>
+                        <p className="text-sm text-muted-foreground">Time: {cls.startTime} - {cls.endTime}</p>
+                         {/* Only show booking buttons for 'user' role */}
+                        {user?.role === 'user' && (
+                             <div className="flex justify-end mt-4 space-x-2">
+                               {booked && (
+                                 <Button variant="outline" onClick={() => handleCancelClass(cls.id)}>
+                                   Cancel Booking
+                                 </Button>
+                               )}
+                               {canBook && (
+                                   <Button onClick={() => handleBookClass(cls.id)}>Book Class</Button>
+                               )}
+                                {isFull && !booked && (
+                                    <Button variant="destructive" disabled>
+                                        Class Full
+                                    </Button>
+                                )}
+                             </div>
+                         )}
+                         {/* Optional: Display message for trainers/admins */}
+                         {(user?.role === 'admin' || user?.role === 'trainer') && (
+                            <div className="text-right mt-4 text-sm text-muted-foreground italic">
+                                Booking available for users.
+                            </div>
+                         )}
+                      </CardContent>
+                    </Card>
+                );
+              })}
           </div>
         </div>
       </div>
