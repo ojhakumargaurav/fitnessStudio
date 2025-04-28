@@ -2,16 +2,15 @@
 'use client';
 
 import {useEffect, useState} from 'react';
-import { getTrainers, Trainer } from '@/actions/trainer'; // Import from actions
 import {Card, CardContent, CardDescription, CardHeader, CardTitle} from '@/components/ui/card'; // Added CardDescription
 import { Badge } from "@/components/ui/badge"; // Import Badge
 
 const TrainersPage = () => {
-  const [trainers, setTrainers] = useState<Trainer[]>([]);
+  const [trainers, setTrainers] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true); // Add loading state
 
   useEffect(() => {
-    const fetchTrainers = async () => {
+    const fetchTrainers = async () => { //todo : add type
        setIsLoading(true);
       try {
           const trainerList = await getTrainers();
@@ -60,10 +59,17 @@ const TrainersPage = () => {
                 </CardContent>
             </Card>
             ))
+
         )}
       </div>
     </div>
   );
+
+
+
+   async function getTrainers() {
+      return [];
+  }
 };
 
 export default TrainersPage;
