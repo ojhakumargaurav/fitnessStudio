@@ -50,12 +50,10 @@ export async function login(username: string, password: string): Promise<AuthRes
 
     return { success: false, error: 'Invalid credentials' };
   } catch (error) {
-    console.error('Login error:', error);
-    return { success: false, error: 'An unexpected error occurred during login.' };
-  } finally {
-    // Prisma automatically handles connection pooling, explicit disconnect might not be needed here
-    // unless in specific scenarios like serverless functions.
-    // await prisma.$disconnect();
+    console.error('Login error caught:', error); // Log the full error object
+    // Check if error is an object and has a message property
+    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+    return { success: false, error: `An unexpected error occurred during login: ${errorMessage}` };
   }
 }
 
@@ -71,7 +69,7 @@ export async function signup(input: SignupInput): Promise<AuthResult> {
     }
      const existingTrainer = await prisma.trainer.findUnique({ where: { email } });
      if (existingTrainer) {
-        return { success: false, error: 'User with this email already exists.' };
+        return { success: false, error: 'An account with this email already exists (Trainer/Admin).' };
      }
 
 
@@ -92,10 +90,12 @@ export async function signup(input: SignupInput): Promise<AuthResult> {
 
     return { success: true, user: { id: newUser.id, role: newUser.role, status: newUser.status } };
   } catch (error) {
-    console.error('Signup error:', error);
-     if (error instanceof Error && 'code' in error && error.code === 'P2002' && 'meta' in error && error.meta && typeof error.meta === 'object' && 'target' in error.meta && Array.isArray(error.meta.target) && error.meta.target.includes('email')) {
+    console.error('Signup error caught:', error); // Log the full error object
+     if (error instanceof Error && 'code' in error && typeof error.code === 'string' && error.code === 'P2002' && 'meta' in error && error.meta && typeof error.meta === 'object' && 'target' in error.meta && Array.isArray(error.meta.target) && error.meta.target.includes('email')) {
        return { success: false, error: 'User with this email already exists.' };
      }
-    return { success: false, error: 'An unexpected error occurred during signup.' };
+    // Check if error is an object and has a message property
+    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+    return { success: false, error: `An unexpected error occurred during signup: ${errorMessage}` };
   }
 }
