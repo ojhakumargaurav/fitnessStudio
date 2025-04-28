@@ -3,7 +3,8 @@
 
 import {useAuth} from '@/hooks/useAuth';
 import {useRouter} from 'next/navigation';
-import {useEffect, useState} from 'react';
+import {useEffect, useState, useMemo} from 'react'; // Added useMemo
+import { format } from 'date-fns'; // Import date-fns for formatting
 import {
   Card,
   CardContent,
@@ -29,7 +30,7 @@ import {Label} from "@/components/ui/label";
 import {Textarea} from "@/components/ui/textarea";
 import {Trainer} from "@/actions/trainer"; // Import Trainer type from action
 import {User, UserStatus} from "@/actions/user"; // Import User type and Status from action
-import {Plus, Edit, Trash2, FileText, History, UserPlus, ImagePlus, CheckSquare} from "lucide-react";
+import {Plus, Edit, Trash2, FileText, History, UserPlus, ImagePlus, CheckSquare, TrendingUp} from "lucide-react"; // Added TrendingUp
 import {cn} from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
@@ -39,6 +40,22 @@ import { getTrainers, createTrainer, updateTrainer, deleteTrainer } from '@/acti
 import { getInvoices, createInvoice, markInvoiceAsPaid, Invoice } from '@/actions/invoice'; // Import invoice server actions
 import { getCarouselImages, addCarouselImage, deleteCarouselImage, updateCarouselImageOrder, CarouselImage } from '@/actions/carousel'; // Import carousel server actions
 import { useToast } from '@/hooks/use-toast';
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer } from "recharts"; // Import Recharts components
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  ChartConfig,
+} from "@/components/ui/chart"; // Import ShadCN chart components
+
+
+// --- Chart Configuration ---
+const chartConfig = {
+  total: {
+    label: "Earnings ($)",
+    color: "hsl(var(--primary))", // Use theme's primary color
+  },
+} satisfies ChartConfig;
 
 
 const AdminPage = () => {
@@ -60,7 +77,7 @@ const AdminPage = () => {
   const [trainerEmail, setTrainerEmail] = useState('');
   const [trainerPassword, setTrainerPassword] = useState(''); // Add password state
   const [trainerPhoneNumber, setTrainerPhoneNumber] = useState('');
-  const [trainerRole, setTrainerRole] = useState('trainer');
+  const [trainerRole, setTrainerRole] = useState<'trainer' | 'admin'>('trainer'); // Explicit type
 
   // Invoice Management State
   const [openInvoiceDialog, setOpenInvoiceDialog] = useState(false);
@@ -120,6 +137,32 @@ const AdminPage = () => {
         fetchData();
     }
   }, [user, toast]); // Rerun if user changes
+
+
+   // --- Calculate Monthly Earnings for Chart ---
+   const monthlyEarningsData = useMemo(() => {
+    const paidInvoices = invoices.filter((inv) => inv.paid && inv.paymentDate);
+    const monthlyTotals: { [key: string]: number } = {};
+
+    paidInvoices.forEach((invoice) => {
+      // Ensure paymentDate exists (already filtered, but good practice)
+      if (invoice.paymentDate) {
+        const paymentMonth = format(new Date(invoice.paymentDate), 'yyyy-MM'); // Group by year-month
+        monthlyTotals[paymentMonth] = (monthlyTotals[paymentMonth] || 0) + invoice.amount;
+      }
+    });
+
+    // Convert to array and sort chronologically
+    const sortedEarnings = Object.entries(monthlyTotals)
+      .map(([month, total]) => ({ month, total }))
+      .sort((a, b) => a.month.localeCompare(b.month));
+
+    // Format month names for display (e.g., 'Jan 2024')
+    return sortedEarnings.map(item => ({
+      month: format(new Date(item.month + '-01T00:00:00'), 'MMM yyyy'), // Add time to avoid timezone issues
+      total: item.total,
+    }));
+  }, [invoices]); // Recalculate only when invoices change
 
 
   // Show loading state while auth or data is loading
@@ -467,6 +510,49 @@ const AdminPage = () => {
       <h1 className="text-3xl font-bold mb-5 text-primary">Admin Dashboard</h1>
       <p className="text-muted-foreground mb-8">Manage users, trainers, invoices, and site content.</p>
 
+      {/* --- Earnings Chart --- */}
+      <Card className="mb-8 shadow-md">
+         <CardHeader>
+           <CardTitle className="flex items-center gap-2">
+             <TrendingUp className="h-5 w-5 text-primary" />
+             Monthly Earnings
+           </CardTitle>
+           <CardDescription>Total earnings from paid invoices each month.</CardDescription>
+         </CardHeader>
+         <CardContent>
+          {monthlyEarningsData.length > 0 ? (
+             <ChartContainer config={chartConfig} className="h-[250px] w-full">
+               <ResponsiveContainer width="100%" height="100%">
+                 <BarChart data={monthlyEarningsData} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
+                   <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                   <XAxis
+                     dataKey="month"
+                     tickLine={false}
+                     axisLine={false}
+                     tickMargin={8}
+                     // tickFormatter={(value) => value.slice(0, 3)} // Abbreviate month names if needed
+                   />
+                   <YAxis
+                     tickLine={false}
+                     axisLine={false}
+                     tickMargin={8}
+                     tickFormatter={(value) => `$${value}`}
+                   />
+                    <ChartTooltip
+                      cursor={false}
+                      content={<ChartTooltipContent indicator="dot" />}
+                    />
+                   <Bar dataKey="total" fill="var(--color-total)" radius={4} />
+                 </BarChart>
+               </ResponsiveContainer>
+             </ChartContainer>
+           ) : (
+             <p className="text-center text-muted-foreground py-4">No earnings data available yet.</p>
+           )}
+         </CardContent>
+      </Card>
+
+
       {/* User Management */}
       <Card className="mb-8 shadow-md">
         <CardHeader className="flex flex-row items-center justify-between">
@@ -500,7 +586,8 @@ const AdminPage = () => {
                 const unpaidInvoice = getUnpaidInvoice(u.id);
                 // Highlight pending users or users with unpaid invoices
                  const isPending = u.status === UserStatus.PENDING;
-                const rowClassName = isPending ? "bg-yellow-100 dark:bg-yellow-900/30" : (unpaidInvoice ? "bg-red-100 dark:bg-red-900/30" : "");
+                 const hasUnpaidInvoice = !!unpaidInvoice; // Boolean check
+                const rowClassName = isPending ? "bg-yellow-100 dark:bg-yellow-900/30" : (hasUnpaidInvoice ? "bg-red-100 dark:bg-red-900/30" : "");
 
                 return (
                   <TableRow key={u.id} className={cn(rowClassName)}>
@@ -635,8 +722,11 @@ const AdminPage = () => {
                   const userInvoice = users.find(u => u.id === invoice.userId);
                   const userName = userInvoice?.name || 'Unknown User';
                   const userEmail = userInvoice?.email || 'N/A'; // Get user email
+                   const isUnpaid = !invoice.paid;
+                   const isOverdue = isUnpaid && new Date(invoice.dueDate) < new Date(); // Check if overdue
+
                   return (
-                    <TableRow key={invoice.id} className={cn(!invoice.paid && "text-destructive")}>
+                    <TableRow key={invoice.id} className={cn(isUnpaid && "text-destructive dark:text-red-400", isOverdue && "font-semibold")}>
                      <TableCell>{userName} ({invoice.userId.substring(0, 6)}...)</TableCell>
                      <TableCell>{userEmail}</TableCell> {/* Display User Email */}
                       <TableCell>${invoice.amount.toFixed(2)}</TableCell>
@@ -645,7 +735,9 @@ const AdminPage = () => {
                         {invoice.paid ? (
                           <Badge variant="default">Paid</Badge>
                         ) : (
-                          <Badge variant="secondary">Unpaid</Badge>
+                          <Badge variant={isOverdue ? "destructive" : "secondary"}>
+                            {isOverdue ? "Overdue" : "Unpaid"}
+                          </Badge>
                         )}
                       </TableCell>
                       <TableCell>{invoice.paymentDate ? new Date(invoice.paymentDate).toLocaleDateString() : "N/A"}</TableCell> {/* Format Date */}
