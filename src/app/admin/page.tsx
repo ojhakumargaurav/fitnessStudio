@@ -25,7 +25,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import {Input} from "@/components/ui/input";
-import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogClose} from "@/components/ui/dialog";
+import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogClose, DialogFooter} from "@/components/ui/dialog"; // Added DialogFooter
 import {Label} from "@/components/ui/label";
 import {Textarea} from "@/components/ui/textarea";
 import {Trainer, TrainerRoleString} from "@/actions/trainer"; // Import Trainer type and RoleString from action
@@ -145,7 +145,7 @@ const AdminPage = () => {
     paidInvoices.forEach((invoice) => {
       if (invoice.paymentDate) {
         const paymentMonth = format(new Date(invoice.paymentDate), 'yyyy-MM');
-        monthlyTotals[paymentMonth] = (monthlyTotals[paymentMonth] || 0) + invoice.amount;
+        monthlyTotals[paymentMonth] = (monthlyTotals[monthlyMonth] || 0) + invoice.amount;
       }
     });
 
@@ -1128,3 +1128,5 @@ const AdminPage = () => {
 };
 
 export default AdminPage;
+
+    
