@@ -33,8 +33,9 @@ export async function getUsers(): Promise<User[]> {
   }
 }
 
-interface CreateUserInput extends Omit<User, 'id' | 'role' | 'status' | 'invoices' | 'bookings' | 'createdAt' | 'updatedAt'> {
-  password?: string; // Password required for creation
+// Omitting 'password' here allows us to redefine it as optional below.
+interface CreateUserInput extends Omit<User, 'id' | 'role' | 'status' | 'invoices' | 'bookings' | 'createdAt' | 'updatedAt' | 'password'> {
+  password?: string; // Password can be undefined in the input, checked by function logic.
   status?: UserStatusString; // Allow setting status on creation (e.g., admin creates active user)
 }
 
