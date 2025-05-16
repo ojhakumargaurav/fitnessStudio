@@ -29,7 +29,8 @@ import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Dia
 import {Label} from "@/components/ui/label";
 import {Textarea} from "@/components/ui/textarea";
 import {Trainer, TrainerRoleString} from "@/actions/trainer"; // Import Trainer type and RoleString from action
-import {User, UserStatus, UserStatusString} from "@/actions/user"; // Import User type and Status object/types from action
+import type {User} from "@/actions/user"; // Import User type from action
+import { UserStatus, type UserStatusString } from "@/types/user"; // Import UserStatus object/types
 import {Plus, Edit, Trash2, FileText, History, UserPlus, ImagePlus, CheckSquare, TrendingUp} from "lucide-react"; // Added TrendingUp
 import {cn} from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -357,7 +358,7 @@ const AdminPage = () => {
         email: userEmail,
         password: userPassword,
         phoneNumber: userPhoneNumber || undefined,
-        status: UserStatus.ACTIVE
+        status: UserStatus.ACTIVE as UserStatusString
       });
 
       if (result.success && result.user) {
@@ -378,7 +379,7 @@ const AdminPage = () => {
         return;
     }
     try {
-        const result = await updateUserStatus(userId, UserStatus.ACTIVE);
+        const result = await updateUserStatus(userId, UserStatus.ACTIVE as UserStatusString);
         if (result.success && result.user) {
             setUsers(users.map(u => u.id === userId ? result.user! : u));
             toast({ title: "Success", description: "User verified and activated." });

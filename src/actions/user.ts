@@ -4,18 +4,10 @@
 import prisma from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
 import type { User as PrismaUser } from '@prisma/client';
+import { UserStatus, type UserStatusString } from '@/types/user';
 
 // Export the User type for frontend use
 export type User = PrismaUser;
-
-// Define string literal type for user status
-export type UserStatusString = 'pending' | 'active';
-
-// Define an object for easy access to status values, similar to an enum
-export const UserStatus = {
-  PENDING: 'pending' as UserStatusString,
-  ACTIVE: 'active' as UserStatusString,
-};
 
 export async function getUsers(): Promise<User[]> {
   try {
@@ -34,7 +26,7 @@ export async function getUsers(): Promise<User[]> {
 }
 
 // Omitting 'password' here allows us to redefine it as optional below.
-interface CreateUserInput extends Omit<User, 'id' | 'role' | 'status' | 'invoices' | 'bookings' | 'createdAt' | 'updatedAt' | 'password'> {
+interface CreateUserInput extends Omit<PrismaUser, 'id' | 'role' | 'status' | 'invoices' | 'bookings' | 'createdAt' | 'updatedAt' | 'password'> {
   password?: string; // Password can be undefined in the input, checked by function logic.
   status?: UserStatusString; // Allow setting status on creation (e.g., admin creates active user)
 }

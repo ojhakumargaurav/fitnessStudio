@@ -3,7 +3,7 @@
 
 import prisma from '@/lib/prisma';
 import type { Class as PrismaClass, ClassBooking as PrismaClassBooking } from '@prisma/client';
-import { UserStatus } from './user'; // Import UserStatus object
+import { UserStatus } from '@/types/user'; // Import UserStatus object
 
 // Re-export types for frontend convenience
 export type Class = PrismaClass;
