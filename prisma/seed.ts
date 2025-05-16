@@ -218,7 +218,7 @@ async function main() {
         console.log(`Created class5 with id: ${class5.id}`);
 
   if (user1.status === USER_STATUS_ACTIVE) {
-      await prisma.classBooking.upsert({ // Corrected: prisma.booking to prisma.classBooking
+      await prisma.classBooking.upsert({
           where: { classId_userId: { classId: class1.id, userId: user1.id } },
           update: {},
           create: {
@@ -271,4 +271,3 @@ main()
   .finally(async () => {
     await prisma.$disconnect();
   });
-
