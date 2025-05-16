@@ -9,22 +9,17 @@ generator client {
 }
 
 model User {
-  id          String    @id @default(cuid())
-  name        String
-  email       String    @unique
-  password    String
-  phoneNumber String?
-  role        String    @default("user") // Should always be "user"
-  status      UserStatus @default(PENDING) // PENDING, ACTIVE
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  bookings    ClassBooking[]
-  invoices    Invoice[]
-}
-
-enum UserStatus {
-  PENDING
-  ACTIVE
+  id            String         @id @default(cuid())
+  name          String
+  email         String         @unique
+  password      String
+  phoneNumber   String?
+  role          String         @default("user") // Role for users is always 'user'
+  status        UserStatus     @default(pending) // Status for new users (pending, active)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  bookings      ClassBooking[]
+  invoices      Invoice[]
 }
 
 model Trainer {
@@ -32,70 +27,70 @@ model Trainer {
   name           String
   email          String   @unique
   password       String
-  role           TrainerRole @default(TRAINER) // TRAINER, ADMIN
+  role           String // Changed from TrainerRole to String
   specialization String
   experience     Int
   schedule       String
   phoneNumber    String?
-  bio            String? // Optional bio
+  bio            String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   classes        Class[]
 }
 
-enum TrainerRole {
-  TRAINER
-  ADMIN
-}
-
 model Class {
-  id             String   @id @default(cuid())
+  id             String         @id @default(cuid())
   name           String
   description    String?
-  category       String
-  date           DateTime // Stores date and time, but we only care about date part for filtering sometimes
-  startTime      String   // e.g., "09:00"
-  endTime        String   // e.g., "10:00"
+  category       String // e.g., Yoga, Strength Training, Cardio
+  date           DateTime       // Date of the class
+  startTime      String         // e.g., "09:00"
+  endTime        String         // e.g., "10:00"
   capacity       Int
   availableSlots Int
   trainerId      String
-  trainer        Trainer  @relation(fields: [trainerId], references: [id], onDelete: Cascade)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  trainer        Trainer        @relation(fields: [trainerId], references: [id], onDelete: Cascade)
   bookings       ClassBooking[]
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
 
-  @@unique([name, date, startTime]) // Ensure a class with the same name, date, and start time is unique
+  @@unique([name, date, startTime]) // Ensure a class with the same name, date, and time is unique
 }
 
 model ClassBooking {
   id          String   @id @default(cuid())
   classId     String
   userId      String
-  bookingDate DateTime @default(now())
   class       Class    @relation(fields: [classId], references: [id], onDelete: Cascade)
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bookingDate DateTime @default(now())
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  @@unique([classId, userId]) // A user can book a specific class only once
+  @@unique([classId, userId]) // A user can only book a specific class once
 }
 
 model Invoice {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   amount      Float
   dueDate     DateTime
-  paid        Boolean  @default(false)
+  paid        Boolean   @default(false)
   paymentDate DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 }
 
 model CarouselImage {
-  id        String   @id @default(cuid())
+  id        String @id @default(cuid())
   url       String
-  position  Int      @unique // To maintain order
+  position  Int    @unique // To maintain order
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+enum UserStatus {
+  pending
+  active
 }
