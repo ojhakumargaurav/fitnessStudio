@@ -9,25 +9,27 @@ generator client {
 }
 
 model User {
-  id            String         @id @default(cuid())
+  id            String   @id @default(cuid())
   name          String
-  email         String         @unique
+  email         String   @unique
   password      String
   phoneNumber   String?
-  role          String         @default("user") // Role for users is always 'user'
-  status        UserStatus     @default(pending) // Status for new users (pending, active)
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  bookings      ClassBooking[]
+  status        String // Changed from UserStatus enum
+  role          String   @default("user") // e.g., 'user', 'trainer', 'admin'
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
   invoices      Invoice[]
+  bookings      ClassBooking[]
 }
+
+// Removed UserStatus enum
 
 model Trainer {
   id             String   @id @default(cuid())
   name           String
   email          String   @unique
   password       String
-  role           String // Changed from TrainerRole to String
+  role           String   // 'admin' or 'trainer'
   specialization String
   experience     Int
   schedule       String
@@ -42,14 +44,14 @@ model Class {
   id             String         @id @default(cuid())
   name           String
   description    String?
-  category       String // e.g., Yoga, Strength Training, Cardio
-  date           DateTime       // Date of the class
-  startTime      String         // e.g., "09:00"
-  endTime        String         // e.g., "10:00"
+  category       String
+  date           DateTime
+  startTime      String // e.g., "09:00"
+  endTime        String // e.g., "10:00"
   capacity       Int
   availableSlots Int
   trainerId      String
-  trainer        Trainer        @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+  trainer        Trainer        @relation(fields: [trainerId], references: [id])
   bookings       ClassBooking[]
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
@@ -61,19 +63,19 @@ model ClassBooking {
   id          String   @id @default(cuid())
   classId     String
   userId      String
-  class       Class    @relation(fields: [classId], references: [id], onDelete: Cascade)
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  class       Class    @relation(fields: [classId], references: [id])
+  user        User     @relation(fields: [userId], references: [id])
   bookingDate DateTime @default(now())
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  @@unique([classId, userId]) // A user can only book a specific class once
+  @@unique([classId, userId]) // Prevent double booking by the same user
 }
 
 model Invoice {
   id          String    @id @default(cuid())
   userId      String
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id])
   amount      Float
   dueDate     DateTime
   paid        Boolean   @default(false)
@@ -83,14 +85,9 @@ model Invoice {
 }
 
 model CarouselImage {
-  id        String @id @default(cuid())
+  id        String   @id @default(cuid())
   url       String
-  position  Int    @unique // To maintain order
+  position  Int      @unique // To maintain order
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-}
-
-enum UserStatus {
-  pending
-  active
 }

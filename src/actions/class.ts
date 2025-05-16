@@ -3,7 +3,7 @@
 
 import prisma from '@/lib/prisma';
 import type { Class as PrismaClass, ClassBooking as PrismaClassBooking } from '@prisma/client';
-import { UserStatus } from './user'; // Import UserStatus
+import { UserStatus } from './user'; // Import UserStatus object
 
 // Re-export types for frontend convenience
 export type Class = PrismaClass;
@@ -87,7 +87,7 @@ export async function bookClass(classId: string, userId: string): Promise<Bookin
     if (!user) {
       return { success: false, error: "User not found." };
     }
-    if (user.status !== UserStatus.ACTIVE) {
+    if (user.status !== UserStatus.ACTIVE) { // Use UserStatus.ACTIVE from the imported object
       return { success: false, error: "Your account is not active. Please contact admin." };
     }
 

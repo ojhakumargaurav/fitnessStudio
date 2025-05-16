@@ -28,8 +28,8 @@ import {Input} from "@/components/ui/input";
 import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogClose} from "@/components/ui/dialog";
 import {Label} from "@/components/ui/label";
 import {Textarea} from "@/components/ui/textarea";
-import {Trainer} from "@/actions/trainer"; // Import Trainer type from action
-import {User, UserStatus} from "@/actions/user"; // Import User type and Status from action
+import {Trainer, TrainerRoleString} from "@/actions/trainer"; // Import Trainer type and RoleString from action
+import {User, UserStatus, UserStatusString} from "@/actions/user"; // Import User type and Status object/types from action
 import {Plus, Edit, Trash2, FileText, History, UserPlus, ImagePlus, CheckSquare, TrendingUp} from "lucide-react"; // Added TrendingUp
 import {cn} from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -77,7 +77,7 @@ const AdminPage = () => {
   const [trainerEmail, setTrainerEmail] = useState('');
   const [trainerPassword, setTrainerPassword] = useState(''); // Add password state
   const [trainerPhoneNumber, setTrainerPhoneNumber] = useState('');
-  const [trainerRole, setTrainerRole] = useState<'trainer' | 'admin'>('trainer'); // Explicit type
+  const [trainerRole, setTrainerRole] = useState<TrainerRoleString>('trainer'); // Explicit type
 
   // Invoice Management State
   const [openInvoiceDialog, setOpenInvoiceDialog] = useState(false);
@@ -186,7 +186,7 @@ const AdminPage = () => {
     setTrainerEmail(trainerToEdit?.email || '');
     setTrainerPassword(''); // Clear password field for security
     setTrainerPhoneNumber(trainerToEdit?.phoneNumber || '');
-    setTrainerRole(trainerToEdit?.role || 'trainer'); // Default to trainer
+    setTrainerRole(trainerToEdit?.role as TrainerRoleString || 'trainer'); // Default to trainer
     setOpenTrainerDialog(true);
   };
 
@@ -212,7 +212,7 @@ const AdminPage = () => {
       email: trainerEmail,
       password: trainerPassword, // Only sent if provided (for new or password change)
       phoneNumber: trainerPhoneNumber || null,
-      role: trainerRole as 'trainer' | 'admin', // Ensure role is correct type
+      role: trainerRole, // Ensure role is correct type
     };
 
     try {
@@ -917,7 +917,7 @@ const AdminPage = () => {
               <Label htmlFor="role" className="text-right">
                 Role
               </Label>
-                <Select value={trainerRole} onValueChange={(value) => setTrainerRole(value as 'trainer' | 'admin')} required>
+                <Select value={trainerRole} onValueChange={(value) => setTrainerRole(value as TrainerRoleString)} required>
                     <SelectTrigger className="col-span-3">
                     <SelectValue placeholder="Select role" />
                     </SelectTrigger>

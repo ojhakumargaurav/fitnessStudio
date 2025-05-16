@@ -8,11 +8,14 @@ import type { User as PrismaUser } from '@prisma/client';
 // Export the User type for frontend use
 export type User = PrismaUser;
 
-// Define enum for user status
-export enum UserStatus {
-  PENDING = 'pending',
-  ACTIVE = 'active',
-}
+// Define string literal type for user status
+export type UserStatusString = 'pending' | 'active';
+
+// Define an object for easy access to status values, similar to an enum
+export const UserStatus = {
+  PENDING: 'pending' as UserStatusString,
+  ACTIVE: 'active' as UserStatusString,
+};
 
 export async function getUsers(): Promise<User[]> {
   try {
@@ -30,9 +33,9 @@ export async function getUsers(): Promise<User[]> {
   }
 }
 
-interface CreateUserInput extends Omit<User, 'id' | 'role' | 'status' | 'invoices' | 'bookings'> {
+interface CreateUserInput extends Omit<User, 'id' | 'role' | 'status' | 'invoices' | 'bookings' | 'createdAt' | 'updatedAt'> {
   password?: string; // Password required for creation
-  status?: UserStatus; // Allow setting status on creation (e.g., admin creates active user)
+  status?: UserStatusString; // Allow setting status on creation (e.g., admin creates active user)
 }
 
 interface CreateUserResult {
@@ -90,10 +93,10 @@ interface UpdateUserStatusResult {
 }
 
 // Action to update user status (e.g., admin verifies user)
-export async function updateUserStatus(userId: string, newStatus: UserStatus): Promise<UpdateUserStatusResult> {
+export async function updateUserStatus(userId: string, newStatus: UserStatusString): Promise<UpdateUserStatusResult> {
   try {
      // Validate status
-     if (!Object.values(UserStatus).includes(newStatus)) {
+     if (newStatus !== UserStatus.ACTIVE && newStatus !== UserStatus.PENDING) {
         return { success: false, error: 'Invalid user status provided.' };
      }
 

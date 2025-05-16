@@ -1,9 +1,13 @@
 
-import { PrismaClient, UserStatus } from '@prisma/client';
+import { PrismaClient } from '@prisma/client'; // Removed UserStatus import
 import bcrypt from 'bcryptjs';
 import { addDays, format } from 'date-fns';
 
 const prisma = new PrismaClient();
+
+// Use string literals directly as UserStatus enum is removed from Prisma schema
+const USER_STATUS_ACTIVE = 'active';
+const USER_STATUS_PENDING = 'pending';
 
 async function main() {
   console.log(`Start seeding ...`);
@@ -20,7 +24,7 @@ async function main() {
       name: 'Gaurav Ojha',
       email: adminEmail,
       password: hashedAdminPassword,
-      role: 'admin',
+      role: 'admin', // Role is a string
       specialization: 'Site Administration',
       experience: 5, // Example experience
       schedule: 'Always available', // Example schedule
@@ -41,7 +45,7 @@ async function main() {
       name: 'Alice Johnson',
       email: trainer1Email,
       password: hashedTrainer1Password,
-      role: 'trainer',
+      role: 'trainer', // Role is a string
       specialization: 'Yoga & Flexibility',
       experience: 5,
       schedule: 'Mon, Wed, Fri 8am-12pm',
@@ -60,7 +64,7 @@ async function main() {
       name: 'Bob Smith',
       email: trainer2Email,
         password: hashedTrainer2Password,
-      role: 'trainer',
+      role: 'trainer', // Role is a string
       specialization: 'Strength Training',
       experience: 8,
       schedule: 'Tue, Thu 1pm-5pm, Sat 9am-1pm',
@@ -80,7 +84,7 @@ async function main() {
       name: 'Charlie Brown',
       email: trainer3Email,
         password: hashedTrainer3Password,
-      role: 'trainer',
+      role: 'trainer', // Role is a string
       specialization: 'Cardio & Endurance',
       experience: 3,
       schedule: 'Mon-Fri 5pm-9pm',
@@ -102,7 +106,7 @@ async function main() {
           email: user1Email,
           password: hashedUser1Password,
           role: 'user',
-          status: UserStatus.ACTIVE, // Active user
+          status: USER_STATUS_ACTIVE, // Active user - string
           phoneNumber: '111-222-3333',
       }
   });
@@ -119,7 +123,7 @@ async function main() {
           email: user2Email,
           password: hashedUser2Password,
           role: 'user',
-          status: UserStatus.PENDING, // Pending user
+          status: USER_STATUS_PENDING, // Pending user - string
           phoneNumber: '444-555-6666',
       }
   });
@@ -220,7 +224,7 @@ async function main() {
 
   // --- Seed Bookings (Optional) ---
   // Example: Book user1 into class1
-  if (user1.status === UserStatus.ACTIVE) {
+  if (user1.status === USER_STATUS_ACTIVE) {
       await prisma.classBooking.upsert({
           where: { classId_userId: { classId: class1.id, userId: user1.id } },
           update: {},
@@ -278,5 +282,3 @@ main()
   .finally(async () => {
     await prisma.$disconnect();
   });
-
-    

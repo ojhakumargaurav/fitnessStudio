@@ -11,7 +11,7 @@ import {useToast} from '@/hooks/use-toast';
 import {cn} from '@/lib/utils';
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '@/components/ui/select';
 import {useAuth} from '@/hooks/useAuth'; // Import useAuth hook
-import { UserStatus } from '@/actions/user'; // Import UserStatus enum
+import { UserStatus } from '@/actions/user'; // Import UserStatus object
 import { Badge } from "@/components/ui/badge"; // Import Badge
 import { useRouter } from 'next/navigation'; // Import useRouter
 
