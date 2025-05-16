@@ -218,7 +218,7 @@ async function main() {
         console.log(`Created class5 with id: ${class5.id}`);
 
   if (user1.status === USER_STATUS_ACTIVE) {
-      await prisma.booking.upsert({
+      await prisma.classBooking.upsert({ // Corrected: prisma.booking to prisma.classBooking
           where: { classId_userId: { classId: class1.id, userId: user1.id } },
           update: {},
           create: {
@@ -242,8 +242,8 @@ async function main() {
     for (const img of imagesToSeed) {
       const createdImage = await prisma.carouselImage.upsert({
         where: { position: img.position },
-        update: { url: img.url },
-        create: { url: img.url, position: img.position },
+        update: { url: img.url, dataAiHint: img.dataAiHint },
+        create: { url: img.url, position: img.position, dataAiHint: img.dataAiHint },
       });
       console.log(`Created/Updated carousel image at position ${createdImage.position}`);
     }
