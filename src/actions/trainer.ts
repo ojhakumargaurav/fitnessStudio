@@ -3,7 +3,7 @@
 
 import prisma from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
-import type { Trainer as PrismaTrainer } from '@prisma/client'; // Removed TrainerRole import
+import type { Trainer as PrismaTrainer } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
 
 // Re-export type for frontend convenience

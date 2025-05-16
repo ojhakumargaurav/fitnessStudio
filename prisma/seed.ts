@@ -1,20 +1,18 @@
 
-import { PrismaClient } from '@prisma/client'; // Removed UserStatus import
+import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { addDays, format } from 'date-fns';
 
 const prisma = new PrismaClient();
 
-// Use string literals directly as UserStatus enum is removed from Prisma schema
 const USER_STATUS_ACTIVE = 'active';
 const USER_STATUS_PENDING = 'pending';
 
 async function main() {
   console.log(`Start seeding ...`);
 
-  // --- Seed Admin ---
   const adminEmail = 'kumarojhagaurav@gmail.com';
-  const adminPassword = 'gymwarriors'; // Use a strong password in production
+  const adminPassword = 'gymwarriors';
   const hashedAdminPassword = await bcrypt.hash(adminPassword, 10);
 
   const admin = await prisma.trainer.upsert({
@@ -24,17 +22,16 @@ async function main() {
       name: 'Gaurav Ojha',
       email: adminEmail,
       password: hashedAdminPassword,
-      role: 'admin', // Role is a string
+      role: 'admin',
       specialization: 'Site Administration',
-      experience: 5, // Example experience
-      schedule: 'Always available', // Example schedule
-      phoneNumber: '123-456-7890', // Example phone
+      experience: 5,
+      schedule: 'Always available',
+      phoneNumber: '123-456-7890',
+      bio: 'Oversees site operations and user management.',
     },
   });
   console.log(`Created admin with id: ${admin.id}`);
 
-
-  // --- Seed Trainers ---
   const trainer1Email = 'trainer1@fitnesshub.com';
   const trainer1Password = 'trainerpass1';
   const hashedTrainer1Password = await bcrypt.hash(trainer1Password, 10);
@@ -45,11 +42,12 @@ async function main() {
       name: 'Alice Johnson',
       email: trainer1Email,
       password: hashedTrainer1Password,
-      role: 'trainer', // Role is a string
+      role: 'trainer',
       specialization: 'Yoga & Flexibility',
       experience: 5,
       schedule: 'Mon, Wed, Fri 8am-12pm',
       phoneNumber: '555-111-2222',
+      bio: 'Alice is a certified Yoga instructor with a passion for helping others find balance and peace through mindful movement.',
     },
   });
   console.log(`Created trainer1 with id: ${trainer1.id}`);
@@ -64,11 +62,12 @@ async function main() {
       name: 'Bob Smith',
       email: trainer2Email,
         password: hashedTrainer2Password,
-      role: 'trainer', // Role is a string
+      role: 'trainer',
       specialization: 'Strength Training',
       experience: 8,
       schedule: 'Tue, Thu 1pm-5pm, Sat 9am-1pm',
       phoneNumber: '555-333-4444',
+      bio: 'Bob is an experienced strength coach focused on helping clients achieve their powerlifting and bodybuilding goals.',
     },
   });
    console.log(`Created trainer2 with id: ${trainer2.id}`);
@@ -84,17 +83,16 @@ async function main() {
       name: 'Charlie Brown',
       email: trainer3Email,
         password: hashedTrainer3Password,
-      role: 'trainer', // Role is a string
+      role: 'trainer',
       specialization: 'Cardio & Endurance',
       experience: 3,
       schedule: 'Mon-Fri 5pm-9pm',
       phoneNumber: '555-555-6666',
+      bio: 'Charlie specializes in high-intensity interval training (HIIT) and endurance running programs.',
     },
   });
    console.log(`Created trainer3 with id: ${trainer3.id}`);
 
-
-  // --- Seed Users ---
   const user1Email = 'user1@example.com';
     const user1Password = 'userpass1';
     const hashedUser1Password = await bcrypt.hash(user1Password, 10);
@@ -106,7 +104,7 @@ async function main() {
           email: user1Email,
           password: hashedUser1Password,
           role: 'user',
-          status: USER_STATUS_ACTIVE, // Active user - string
+          status: USER_STATUS_ACTIVE,
           phoneNumber: '111-222-3333',
       }
   });
@@ -123,18 +121,15 @@ async function main() {
           email: user2Email,
           password: hashedUser2Password,
           role: 'user',
-          status: USER_STATUS_PENDING, // Pending user - string
+          status: USER_STATUS_PENDING,
           phoneNumber: '444-555-6666',
       }
   });
    console.log(`Created user2 with id: ${user2.id}`);
 
-
-  // --- Seed Classes for Tomorrow ---
   const tomorrow = addDays(new Date(), 1);
-  const formattedTomorrow = format(tomorrow, 'yyyy-MM-dd'); // Format for comparison if needed, but Date object is better
 
-  console.log(`Seeding classes for: ${formattedTomorrow}`);
+  console.log(`Seeding classes for: ${format(tomorrow, 'yyyy-MM-dd')}`);
 
   const class1 = await prisma.class.upsert({
     where: { name_date_startTime: { name: 'Morning Yoga', date: tomorrow, startTime: '09:00' } },
@@ -222,10 +217,8 @@ async function main() {
       });
         console.log(`Created class5 with id: ${class5.id}`);
 
-  // --- Seed Bookings (Optional) ---
-  // Example: Book user1 into class1
   if (user1.status === USER_STATUS_ACTIVE) {
-      await prisma.classBooking.upsert({
+      await prisma.booking.upsert({
           where: { classId_userId: { classId: class1.id, userId: user1.id } },
           update: {},
           create: {
@@ -233,7 +226,6 @@ async function main() {
               userId: user1.id,
           }
       });
-      // Decrement available slots for class1
       await prisma.class.update({
           where: { id: class1.id },
           data: { availableSlots: { decrement: 1 } }
@@ -241,24 +233,21 @@ async function main() {
       console.log(`Booked user1 into class1`);
   }
 
-
-  // --- Seed Carousel Images ---
     const imagesToSeed = [
-      { url: 'https://picsum.photos/800/400?random=1', position: 1 },
-      { url: 'https://picsum.photos/800/400?random=2', position: 2 },
-      { url: 'https://picsum.photos/800/400?random=3', position: 3 },
+      { url: 'https://placehold.co/800x400.png', dataAiHint: 'gym workout', position: 1 },
+      { url: 'https://placehold.co/800x400.png', dataAiHint: 'yoga class', position: 2 },
+      { url: 'https://placehold.co/800x400.png', dataAiHint: 'weightlifting fitness', position: 3 },
     ];
 
     for (const img of imagesToSeed) {
       const createdImage = await prisma.carouselImage.upsert({
-        where: { position: img.position }, // Use position as a unique identifier for seeding if urls might change
-        update: { url: img.url }, // Update URL if position exists
+        where: { position: img.position },
+        update: { url: img.url },
         create: { url: img.url, position: img.position },
       });
       console.log(`Created/Updated carousel image at position ${createdImage.position}`);
     }
 
-    // Ensure positions are sequential if needed after upserting
     const allImages = await prisma.carouselImage.findMany({ orderBy: { position: 'asc' } });
     await prisma.$transaction(
         allImages.map((img, index) =>
@@ -282,3 +271,4 @@ main()
   .finally(async () => {
     await prisma.$disconnect();
   });
+

@@ -75,9 +75,10 @@ const AdminPage = () => {
   const [trainerExperience, setTrainerExperience] = useState('');
   const [trainerSchedule, setTrainerSchedule] = useState('');
   const [trainerEmail, setTrainerEmail] = useState('');
-  const [trainerPassword, setTrainerPassword] = useState(''); // Add password state
+  const [trainerPassword, setTrainerPassword] = useState('');
   const [trainerPhoneNumber, setTrainerPhoneNumber] = useState('');
-  const [trainerRole, setTrainerRole] = useState<TrainerRoleString>('trainer'); // Explicit type
+  const [trainerRole, setTrainerRole] = useState<TrainerRoleString>('trainer');
+  const [trainerBio, setTrainerBio] = useState(''); // Added trainerBio state
 
   // Invoice Management State
   const [openInvoiceDialog, setOpenInvoiceDialog] = useState(false);
@@ -94,89 +95,79 @@ const AdminPage = () => {
   const [openUserDialog, setOpenUserDialog] = useState(false);
   const [userName, setUserName] = useState('');
   const [userEmail, setUserEmail] = useState('');
-   const [userPassword, setUserPassword] = useState(''); // Add password state
+   const [userPassword, setUserPassword] = useState('');
   const [userPhoneNumber, setUserPhoneNumber] = useState('');
 
   // Carousel Image Management State
   const [openImageDialog, setOpenImageDialog] = useState(false);
   const [newImageUrl, setNewImageUrl] = useState('');
-  const [isLoadingData, setIsLoadingData] = useState(true); // Changed name to avoid conflict
+  const [isLoadingData, setIsLoadingData] = useState(true);
 
 
   useEffect(() => {
-    // Redirect if auth is finished loading and user is not admin
     if (!isAuthLoading && (!user || user.role !== 'admin')) {
       router.push('/login');
     }
   }, [user, isAuthLoading, router]);
 
-  // Fetch initial data only if user is confirmed admin
   useEffect(() => {
     if (user?.role === 'admin') {
         const fetchData = async () => {
-            setIsLoadingData(true); // Start loading data
+            setIsLoadingData(true);
             try {
                 const [userList, trainerList, invoiceList, imageList] = await Promise.all([
                     getUsers(),
                     getTrainers(),
                     getInvoices(),
-                    getCarouselImages() // Use action from carousel.ts
+                    getCarouselImages()
                 ]);
                 setUsers(userList);
                 setTrainers(trainerList);
                 setInvoices(invoiceList);
-                // Ensure images are sorted by position
                 setCarouselImages(imageList.sort((a, b) => a.position - b.position));
             } catch (error) {
                 console.error("Error fetching admin data:", error);
                 toast({ title: "Error", description: "Failed to load dashboard data.", variant: "destructive" });
             } finally {
-                setIsLoadingData(false); // Finish loading data
+                setIsLoadingData(false);
             }
         };
         fetchData();
     }
-  }, [user, toast]); // Rerun if user changes
+  }, [user, toast]);
 
 
-   // --- Calculate Monthly Earnings for Chart ---
    const monthlyEarningsData = useMemo(() => {
     const paidInvoices = invoices.filter((inv) => inv.paid && inv.paymentDate);
     const monthlyTotals: { [key: string]: number } = {};
 
     paidInvoices.forEach((invoice) => {
-      // Ensure paymentDate exists (already filtered, but good practice)
       if (invoice.paymentDate) {
-        const paymentMonth = format(new Date(invoice.paymentDate), 'yyyy-MM'); // Group by year-month
+        const paymentMonth = format(new Date(invoice.paymentDate), 'yyyy-MM');
         monthlyTotals[paymentMonth] = (monthlyTotals[paymentMonth] || 0) + invoice.amount;
       }
     });
 
-    // Convert to array and sort chronologically
     const sortedEarnings = Object.entries(monthlyTotals)
       .map(([month, total]) => ({ month, total }))
       .sort((a, b) => a.month.localeCompare(b.month));
 
-    // Format month names for display (e.g., 'Jan 2024')
     return sortedEarnings.map(item => ({
-      month: format(new Date(item.month + '-01T00:00:00'), 'MMM yyyy'), // Add time to avoid timezone issues
+      month: format(new Date(item.month + '-01T00:00:00'), 'MMM yyyy'),
       total: item.total,
     }));
-  }, [invoices]); // Recalculate only when invoices change
+  }, [invoices]);
 
 
-  // Show loading state while auth or data is loading
   if (isAuthLoading || isLoadingData || !user) {
-    return <div className="container mx-auto py-10 text-center">Loading Admin Dashboard...</div>; // Or a proper loading spinner
+    return <div className="container mx-auto py-10 text-center">Loading Admin Dashboard...</div>;
   }
 
-  // This check is technically redundant due to the useEffect redirect, but kept as a safeguard
   if (user.role !== 'admin') {
     return <div className="container mx-auto py-10">Unauthorized Access</div>;
   }
 
 
-  // --- Trainer Management Handlers ---
   const handleOpenTrainerDialog = (trainerToEdit: Trainer | null = null) => {
     setEditingTrainer(trainerToEdit);
     setTrainerName(trainerToEdit?.name || '');
@@ -184,9 +175,10 @@ const AdminPage = () => {
     setTrainerExperience(trainerToEdit?.experience.toString() || '');
     setTrainerSchedule(trainerToEdit?.schedule || '');
     setTrainerEmail(trainerToEdit?.email || '');
-    setTrainerPassword(''); // Clear password field for security
+    setTrainerPassword('');
     setTrainerPhoneNumber(trainerToEdit?.phoneNumber || '');
-    setTrainerRole(trainerToEdit?.role as TrainerRoleString || 'trainer'); // Default to trainer
+    setTrainerRole(trainerToEdit?.role as TrainerRoleString || 'trainer');
+    setTrainerBio(trainerToEdit?.bio || ''); // Initialize trainerBio
     setOpenTrainerDialog(true);
   };
 
@@ -198,7 +190,6 @@ const AdminPage = () => {
         return;
     }
 
-    // Basic validation
     if (!trainerName || !trainerSpecialization || !trainerEmail || (!editingTrainer && !trainerPassword) || !trainerRole) {
          toast({ title: "Error", description: "Please fill in all required trainer/admin fields (including password for new ones and role).", variant: "destructive" });
         return;
@@ -210,19 +201,17 @@ const AdminPage = () => {
       experience: experienceNum,
       schedule: trainerSchedule,
       email: trainerEmail,
-      password: trainerPassword, // Only sent if provided (for new or password change)
+      password: trainerPassword,
       phoneNumber: trainerPhoneNumber || null,
-      role: trainerRole, // Ensure role is correct type
+      role: trainerRole,
+      bio: trainerBio || null, // Include bio
     };
 
     try {
         let result;
         if (editingTrainer) {
-            // Update existing trainer
              result = await updateTrainer(editingTrainer.id, {
                  ...trainerData,
-                 // Don't send empty password for update unless intended
-                 // Password field is cleared on dialog open, only send if user enters a new one
                  password: trainerPassword ? trainerPassword : undefined
              });
              if (result.success && result.data?.trainer) {
@@ -232,13 +221,11 @@ const AdminPage = () => {
                 throw new Error(result.error || "Failed to update trainer/admin");
             }
         } else {
-            // Add new trainer/admin
-            // Ensure password is provided for new trainers/admins
             if (!trainerPassword) {
                 toast({ title: "Error", description: "Password is required for new trainers/admins.", variant: "destructive" });
                 return;
             }
-             result = await createTrainer({ ...trainerData, password: trainerPassword }); // Pass the required password
+             result = await createTrainer({ ...trainerData, password: trainerPassword });
              if (result.success && result.data?.trainer) {
                 setTrainers([...trainers, result.data.trainer]);
                 toast({ title: "Success", description: "Trainer/Admin added successfully." });
@@ -272,7 +259,6 @@ const AdminPage = () => {
   };
 
 
-  // --- Invoice Management Handlers ---
   const handleOpenInvoiceDialog = (user: User) => {
     setSelectedUserForInvoice(user);
     setInvoiceAmount('');
@@ -300,7 +286,7 @@ const AdminPage = () => {
         if (result.success && result.data?.invoice) {
             setInvoices([...invoices, result.data.invoice]);
             toast({ title: "Success", description: "Invoice generated successfully." });
-             setOpenInvoiceDialog(false); // Close dialog on success
+             setOpenInvoiceDialog(false);
         } else {
             throw new Error(result.error || "Failed to generate invoice");
         }
@@ -313,7 +299,7 @@ const AdminPage = () => {
 
   const handleOpenMarkPaidDialog = (invoice: Invoice) => {
     setInvoiceToMarkPaid(invoice);
-    setPaymentDate(new Date().toISOString().split('T')[0]); // Default to today
+    setPaymentDate(new Date().toISOString().split('T')[0]);
     setOpenMarkPaidDialog(true);
   };
 
@@ -329,8 +315,8 @@ const AdminPage = () => {
       if (result.success && result.data?.invoice) {
         setInvoices(invoices.map(inv => inv.id === result.data!.invoice!.id ? result.data!.invoice! : inv));
         toast({ title: "Success", description: "Invoice marked as paid." });
-        setOpenMarkPaidDialog(false); // Close the dialog
-        setInvoiceToMarkPaid(null); // Reset selected invoice
+        setOpenMarkPaidDialog(false);
+        setInvoiceToMarkPaid(null);
       } else {
         throw new Error(result.error || "Failed to mark invoice as paid");
       }
@@ -347,16 +333,14 @@ const AdminPage = () => {
   };
 
   const getUnpaidInvoice = (userId: string): Invoice | undefined => {
-    // Find the *first* unpaid invoice for simplicity, or adjust logic if needed
     return invoices.find(invoice => invoice.userId === userId && !invoice.paid);
   };
 
 
- // --- User Management Handlers ---
   const handleOpenUserDialog = () => {
     setUserName('');
     setUserEmail('');
-    setUserPassword(''); // Clear password field
+    setUserPassword('');
     setUserPhoneNumber('');
     setOpenUserDialog(true);
   };
@@ -371,9 +355,9 @@ const AdminPage = () => {
       const result = await createUser({
         name: userName,
         email: userEmail,
-        password: userPassword, // Send password for creation
-        phoneNumber: userPhoneNumber || undefined, // Send undefined if empty, not null
-        status: UserStatus.ACTIVE // Admins add active users directly
+        password: userPassword,
+        phoneNumber: userPhoneNumber || undefined,
+        status: UserStatus.ACTIVE
       });
 
       if (result.success && result.user) {
@@ -398,17 +382,6 @@ const AdminPage = () => {
         if (result.success && result.user) {
             setUsers(users.map(u => u.id === userId ? result.user! : u));
             toast({ title: "Success", description: "User verified and activated." });
-
-            // Optionally, generate the first invoice automatically upon verification
-            // Consider adding a dialog for amount/due date if needed, or use defaults
-            // const invoiceResult = await createInvoice({ userId: userId, amount: 50, dueDate: '...' });
-            // if (invoiceResult.success && invoiceResult.data?.invoice) {
-            //    setInvoices([...invoices, invoiceResult.data.invoice]);
-            //    toast({ title: "Info", description: "Initial invoice generated for the user." });
-            // } else {
-            //    toast({ title: "Warning", description: `User activated, but failed to generate initial invoice: ${invoiceResult.error}`, variant: "destructive" });
-            // }
-
         } else {
             throw new Error(result.error || "Failed to verify user.");
         }
@@ -418,7 +391,6 @@ const AdminPage = () => {
     }
   };
 
- // --- Carousel Image Management Handlers ---
   const handleOpenImageDialog = () => {
     setNewImageUrl('');
     setOpenImageDialog(true);
@@ -431,12 +403,10 @@ const AdminPage = () => {
     }
 
     try {
-        // Calculate next position
         const nextPosition = carouselImages.length > 0 ? Math.max(...carouselImages.map(img => img.position)) + 1 : 1;
 
         const result = await addCarouselImage(newImageUrl, nextPosition);
         if (result.success && result.data?.image) {
-             // Add and re-sort locally to reflect the new order immediately
              const updatedImages = [...carouselImages, result.data.image].sort((a, b) => a.position - b.position);
              setCarouselImages(updatedImages);
              toast({ title: "Success", description: "Image added successfully." });
@@ -458,9 +428,7 @@ const AdminPage = () => {
         const result = await deleteCarouselImage(imageId);
         if (result.success) {
              const updatedImages = carouselImages.filter(img => img.id !== imageId);
-             // Re-calculate positions after deletion is not strictly necessary if relying on DB order,
-             // but good for immediate UI consistency if needed. Let's keep it simple for now.
-             setCarouselImages(updatedImages.sort((a,b)=> a.position - b.position)); // Re-sort after delete
+             setCarouselImages(updatedImages.sort((a,b)=> a.position - b.position));
              toast({ title: "Success", description: "Image deleted successfully." });
         } else {
              throw new Error(result.error || "Failed to delete image.");
@@ -478,28 +446,23 @@ const AdminPage = () => {
     const [reorderedItem] = items.splice(result.source.index, 1);
     items.splice(result.destination.index, 0, reorderedItem);
 
-    // Create the new order mapping: {imageId: newPosition}
     const newOrder = items.map((item, index) => ({
         id: item.id,
-        position: index + 1 // Positions are 1-based
+        position: index + 1
     }));
 
-     // Optimistically update UI
     setCarouselImages(items.map((item, index)=> ({...item, position: index+1})));
 
     try {
         const updateResult = await updateCarouselImageOrder(newOrder);
         if (!updateResult.success) {
-            // Revert UI on failure
-            setCarouselImages(carouselImages); // Revert to original order
+            setCarouselImages(carouselImages);
             throw new Error(updateResult.error || "Failed to update image order.");
         }
          toast({ title: "Success", description: "Image order updated." });
-         // No need to set state again as UI was updated optimistically
     } catch (error: any) {
         console.error("Error updating carousel order:", error);
         toast({ title: "Error", description: error.message || "Could not update image order.", variant: "destructive" });
-         // Revert UI on error
         setCarouselImages(carouselImages);
     }
 };
@@ -510,7 +473,6 @@ const AdminPage = () => {
       <h1 className="text-3xl font-bold mb-5 text-primary">Admin Dashboard</h1>
       <p className="text-muted-foreground mb-8">Manage users, trainers, invoices, and site content.</p>
 
-      {/* --- Earnings Chart --- */}
       <Card className="mb-8 shadow-md">
          <CardHeader>
            <CardTitle className="flex items-center gap-2">
@@ -530,7 +492,6 @@ const AdminPage = () => {
                      tickLine={false}
                      axisLine={false}
                      tickMargin={8}
-                     // tickFormatter={(value) => value.slice(0, 3)} // Abbreviate month names if needed
                    />
                    <YAxis
                      tickLine={false}
@@ -553,7 +514,6 @@ const AdminPage = () => {
       </Card>
 
 
-      {/* User Management */}
       <Card className="mb-8 shadow-md">
         <CardHeader className="flex flex-row items-center justify-between">
            <div>
@@ -584,9 +544,8 @@ const AdminPage = () => {
               )}
               {users.map((u) => {
                 const unpaidInvoice = getUnpaidInvoice(u.id);
-                // Highlight pending users or users with unpaid invoices
                  const isPending = u.status === UserStatus.PENDING;
-                 const hasUnpaidInvoice = !!unpaidInvoice; // Boolean check
+                 const hasUnpaidInvoice = !!unpaidInvoice;
                 const rowClassName = isPending ? "bg-yellow-100 dark:bg-yellow-900/30" : (hasUnpaidInvoice ? "bg-red-100 dark:bg-red-900/30" : "");
 
                 return (
@@ -596,7 +555,7 @@ const AdminPage = () => {
                     <TableCell>{u.phoneNumber || 'N/A'}</TableCell>
                     <TableCell>
                        <Badge variant={isPending ? 'secondary' : 'default'}>
-                           {u.status.charAt(0).toUpperCase() + u.status.slice(1)} {/* Capitalize status */}
+                           {u.status.charAt(0).toUpperCase() + u.status.slice(1)}
                        </Badge>
                     </TableCell>
                     <TableCell className="text-right space-x-2">
@@ -623,7 +582,6 @@ const AdminPage = () => {
         </CardContent>
       </Card>
 
-      {/* Trainer Management */}
       <Card className="mb-8 shadow-md">
         <CardHeader className="flex flex-row items-center justify-between">
            <div>
@@ -674,7 +632,6 @@ const AdminPage = () => {
                       <Edit className="mr-1 h-4 w-4"/>
                       Edit
                     </Button>
-                    {/* Prevent deleting the currently logged-in admin */}
                     <Button
                         variant="destructive"
                         size="sm"
@@ -693,7 +650,6 @@ const AdminPage = () => {
         </CardContent>
       </Card>
 
-      {/* Invoice Management */}
        <Card className="mb-8 shadow-md">
         <CardHeader>
           <CardTitle>Invoices</CardTitle>
@@ -704,7 +660,7 @@ const AdminPage = () => {
             <TableHeader>
               <TableRow>
                  <TableHead>User Name</TableHead>
-                 <TableHead>User Email</TableHead> {/* Added User Email */}
+                 <TableHead>User Email</TableHead>
                 <TableHead>Amount</TableHead>
                 <TableHead>Due Date</TableHead>
                 <TableHead>Status</TableHead>
@@ -715,22 +671,22 @@ const AdminPage = () => {
             <TableBody>
              {invoices.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-muted-foreground">No invoices found.</TableCell> {/* Increased colSpan */}
+                  <TableCell colSpan={7} className="text-center text-muted-foreground">No invoices found.</TableCell>
                 </TableRow>
               )}
               {invoices.map((invoice) => {
                   const userInvoice = users.find(u => u.id === invoice.userId);
                   const userName = userInvoice?.name || 'Unknown User';
-                  const userEmail = userInvoice?.email || 'N/A'; // Get user email
+                  const userEmail = userInvoice?.email || 'N/A';
                    const isUnpaid = !invoice.paid;
-                   const isOverdue = isUnpaid && new Date(invoice.dueDate) < new Date(); // Check if overdue
+                   const isOverdue = isUnpaid && new Date(invoice.dueDate) < new Date();
 
                   return (
                     <TableRow key={invoice.id} className={cn(isUnpaid && "text-destructive dark:text-red-400", isOverdue && "font-semibold")}>
                      <TableCell>{userName} ({invoice.userId.substring(0, 6)}...)</TableCell>
-                     <TableCell>{userEmail}</TableCell> {/* Display User Email */}
+                     <TableCell>{userEmail}</TableCell>
                       <TableCell>${invoice.amount.toFixed(2)}</TableCell>
-                      <TableCell>{new Date(invoice.dueDate).toLocaleDateString()}</TableCell> {/* Format Date */}
+                      <TableCell>{new Date(invoice.dueDate).toLocaleDateString()}</TableCell>
                       <TableCell>
                         {invoice.paid ? (
                           <Badge variant="default">Paid</Badge>
@@ -740,7 +696,7 @@ const AdminPage = () => {
                           </Badge>
                         )}
                       </TableCell>
-                      <TableCell>{invoice.paymentDate ? new Date(invoice.paymentDate).toLocaleDateString() : "N/A"}</TableCell> {/* Format Date */}
+                      <TableCell>{invoice.paymentDate ? new Date(invoice.paymentDate).toLocaleDateString() : "N/A"}</TableCell>
                       <TableCell className="text-right">
                         {!invoice.paid && (
                            <Button variant="outline" size="sm" onClick={() => handleOpenMarkPaidDialog(invoice)}>
@@ -756,7 +712,6 @@ const AdminPage = () => {
         </CardContent>
       </Card>
 
-       {/* Carousel Image Management */}
       <Card className="mb-5 shadow-md">
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
@@ -810,7 +765,6 @@ const AdminPage = () => {
 
       {/* --- DIALOGS --- */}
 
-      {/* Trainer/Admin Dialog */}
       <Dialog open={openTrainerDialog} onOpenChange={setOpenTrainerDialog}>
         <DialogContent>
           <DialogHeader>
@@ -820,14 +774,12 @@ const AdminPage = () => {
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-            {/* Name */}
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="trainerName" className="text-right">
                 Name
               </Label>
               <Input id="trainerName" value={trainerName} onChange={(e) => setTrainerName(e.target.value)} className="col-span-3" required/>
             </div>
-            {/* Email */}
              <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="trainerEmail" className="text-right">
                 Email
@@ -841,7 +793,6 @@ const AdminPage = () => {
                 required
               />
             </div>
-             {/* Password */}
              <div className="grid grid-cols-4 items-center gap-4">
                <Label htmlFor="trainerPassword" className="text-right">
                  Password
@@ -853,10 +804,9 @@ const AdminPage = () => {
                  onChange={(e) => setTrainerPassword(e.target.value)}
                  className="col-span-3"
                  placeholder={editingTrainer ? "Leave blank to keep current" : "Required"}
-                 required={!editingTrainer} // Required only when creating
+                 required={!editingTrainer}
                />
              </div>
-            {/* Specialization */}
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="specialization" className="text-right">
                 Specialization
@@ -870,7 +820,6 @@ const AdminPage = () => {
                  placeholder="e.g., Yoga, Strength"
               />
             </div>
-            {/* Experience */}
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="experience" className="text-right">
                 Experience (Yrs)
@@ -885,7 +834,6 @@ const AdminPage = () => {
                  required
               />
             </div>
-            {/* Schedule */}
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="schedule" className="text-right">
                 Schedule
@@ -899,7 +847,6 @@ const AdminPage = () => {
                  required
               />
             </div>
-            {/* Phone Number */}
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="trainerPhoneNumber" className="text-right">
                 Phone (Optional)
@@ -912,7 +859,18 @@ const AdminPage = () => {
                 className="col-span-3"
               />
             </div>
-            {/* Role */}
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="trainerBio" className="text-right">
+                Bio (Optional)
+              </Label>
+              <Textarea
+                id="trainerBio"
+                value={trainerBio}
+                onChange={(e) => setTrainerBio(e.target.value)}
+                className="col-span-3"
+                placeholder="Tell us a bit about this trainer/admin..."
+              />
+            </div>
              <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="role" className="text-right">
                 Role
@@ -937,7 +895,6 @@ const AdminPage = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Invoice Dialog */}
       <Dialog open={openInvoiceDialog} onOpenChange={setOpenInvoiceDialog}>
         <DialogContent>
           <DialogHeader>
@@ -971,7 +928,7 @@ const AdminPage = () => {
                 type="date"
                 value={invoiceDueDate}
                 onChange={(e) => setInvoiceDueDate(e.target.value)}
-                 min={new Date().toISOString().split("T")[0]} // Prevent past due dates
+                 min={new Date().toISOString().split("T")[0]}
                 className="col-span-3"
                 required
               />
@@ -986,7 +943,6 @@ const AdminPage = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Mark as Paid Dialog */}
       <Dialog open={openMarkPaidDialog} onOpenChange={setOpenMarkPaidDialog}>
         <DialogContent>
           <DialogHeader>
@@ -1005,7 +961,7 @@ const AdminPage = () => {
                 type="date"
                 value={paymentDate}
                 onChange={(e) => setPaymentDate(e.target.value)}
-                 max={new Date().toISOString().split("T")[0]} // Cannot be future date
+                 max={new Date().toISOString().split("T")[0]}
                 className="col-span-3"
                  required
               />
@@ -1021,7 +977,6 @@ const AdminPage = () => {
       </Dialog>
 
 
-      {/* Payment History Dialog */}
       <Dialog open={openPaymentHistoryDialog} onOpenChange={setOpenPaymentHistoryDialog}>
         <DialogContent className="sm:max-w-[625px]">
           <DialogHeader>
@@ -1044,7 +999,7 @@ const AdminPage = () => {
               <TableBody>
                 {invoices
                   .filter((invoice) => invoice.userId === selectedUserPaymentHistory?.id && invoice.paid)
-                  .sort((a, b) => new Date(b.paymentDate || 0).getTime() - new Date(a.paymentDate || 0).getTime()) // Sort by most recent paid
+                  .sort((a, b) => new Date(b.paymentDate || 0).getTime() - new Date(a.paymentDate || 0).getTime())
                   .map((invoice) => (
                     <TableRow key={invoice.id}>
                       <TableCell className="font-mono text-xs">{invoice.id.substring(0,8)}...</TableCell>
@@ -1072,7 +1027,6 @@ const AdminPage = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Add User Dialog (Admin creates active users) */}
       <Dialog open={openUserDialog} onOpenChange={setOpenUserDialog}>
         <DialogContent>
           <DialogHeader>
@@ -1136,7 +1090,6 @@ const AdminPage = () => {
         </DialogContent>
       </Dialog>
 
-       {/* Add Image Dialog */}
       <Dialog open={openImageDialog} onOpenChange={setOpenImageDialog}>
         <DialogContent>
           <DialogHeader>
