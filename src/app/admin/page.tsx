@@ -2,7 +2,7 @@
 'use client';
 
 import {useAuth} from '@/hooks/useAuth';
-import {useRouter} from 'next/navigation';
+import {useRouter}from 'next/navigation';
 import {useEffect, useState, useMemo} from 'react'; // Added useMemo
 import { format } from 'date-fns'; // Import date-fns for formatting
 import {
@@ -24,15 +24,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import {Input} from "@/components/ui/input";
+import {Input}from "@/components/ui/input";
 import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogClose, DialogFooter} from "@/components/ui/dialog"; // Added DialogFooter
-import {Label} from "@/components/ui/label";
-import {Textarea} from "@/components/ui/textarea";
+import {Label}from "@/components/ui/label";
+import {Textarea}from "@/components/ui/textarea";
 import {Trainer, TrainerRoleString} from "@/actions/trainer"; // Import Trainer type and RoleString from action
-import type {User} from "@/actions/user"; // Import User type from action
+import type {User}from "@/actions/user"; // Import User type from action
 import { UserStatus, type UserStatusString } from "@/types/user"; // Import UserStatus object/types
 import {Plus, Edit, Trash2, FileText, History, UserPlus, ImagePlus, CheckSquare, TrendingUp} from "lucide-react"; // Added TrendingUp
-import {cn} from "@/lib/utils";
+import {cn}from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@/components/ui/select"; // Ensure Select components are imported
@@ -79,7 +79,7 @@ const AdminPage = () => {
   const [trainerPassword, setTrainerPassword] = useState('');
   const [trainerPhoneNumber, setTrainerPhoneNumber] = useState('');
   const [trainerRole, setTrainerRole] = useState<TrainerRoleString>('trainer');
-  const [trainerBio, setTrainerBio] = useState(''); // Added trainerBio state
+  const [trainerBio, setTrainerBio] = useState('');
 
   // Invoice Management State
   const [openInvoiceDialog, setOpenInvoiceDialog] = useState(false);
@@ -96,13 +96,18 @@ const AdminPage = () => {
   const [openUserDialog, setOpenUserDialog] = useState(false);
   const [userName, setUserName] = useState('');
   const [userEmail, setUserEmail] = useState('');
-   const [userPassword, setUserPassword] = useState('');
+  const [userPassword, setUserPassword] = useState('');
   const [userPhoneNumber, setUserPhoneNumber] = useState('');
 
   // Carousel Image Management State
   const [openImageDialog, setOpenImageDialog] = useState(false);
   const [newImageUrl, setNewImageUrl] = useState('');
   const [isLoadingData, setIsLoadingData] = useState(true);
+  const [isClient, setIsClient] = useState(false); // State to ensure client-side rendering for DND
+
+  useEffect(() => {
+    setIsClient(true); // Component has mounted
+  }, []);
 
 
   useEffect(() => {
@@ -135,7 +140,7 @@ const AdminPage = () => {
         };
         fetchData();
     }
-  }, [user, toast]);
+  }, [user, toast]); // Removed toast from dependencies as it should be stable
 
 
    const monthlyEarningsData = useMemo(() => {
@@ -145,7 +150,7 @@ const AdminPage = () => {
     paidInvoices.forEach((invoice) => {
       if (invoice.paymentDate) {
         const paymentMonth = format(new Date(invoice.paymentDate), 'yyyy-MM');
-        monthlyTotals[paymentMonth] = (monthlyTotals[monthlyMonth] || 0) + invoice.amount;
+        monthlyTotals[paymentMonth] = (monthlyTotals[paymentMonth] || 0) + invoice.amount;
       }
     });
 
@@ -179,7 +184,7 @@ const AdminPage = () => {
     setTrainerPassword('');
     setTrainerPhoneNumber(trainerToEdit?.phoneNumber || '');
     setTrainerRole(trainerToEdit?.role as TrainerRoleString || 'trainer');
-    setTrainerBio(trainerToEdit?.bio || ''); // Initialize trainerBio
+    setTrainerBio(trainerToEdit?.bio || '');
     setOpenTrainerDialog(true);
   };
 
@@ -203,9 +208,9 @@ const AdminPage = () => {
       schedule: trainerSchedule,
       email: trainerEmail,
       password: trainerPassword,
-      phoneNumber: trainerPhoneNumber || null,
+      phoneNumber: trainerPhoneNumber || undefined, // Pass undefined if empty for Prisma optional field
       role: trainerRole,
-      bio: trainerBio || null, // Include bio
+      bio: trainerBio || undefined, // Pass undefined if empty
     };
 
     try {
@@ -358,7 +363,7 @@ const AdminPage = () => {
         email: userEmail,
         password: userPassword,
         phoneNumber: userPhoneNumber || undefined,
-        status: UserStatus.ACTIVE as UserStatusString
+        status: UserStatus.ACTIVE as UserStatusString // Admin created users are active by default
       });
 
       if (result.success && result.user) {
@@ -429,7 +434,7 @@ const AdminPage = () => {
         const result = await deleteCarouselImage(imageId);
         if (result.success) {
              const updatedImages = carouselImages.filter(img => img.id !== imageId);
-             setCarouselImages(updatedImages.sort((a,b)=> a.position - b.position));
+             setCarouselImages(updatedImages.sort((a,b)=> a.position - b.position)); // Re-sort after deletion
              toast({ title: "Success", description: "Image deleted successfully." });
         } else {
              throw new Error(result.error || "Failed to delete image.");
@@ -452,11 +457,13 @@ const AdminPage = () => {
         position: index + 1
     }));
 
+    // Optimistically update UI
     setCarouselImages(items.map((item, index)=> ({...item, position: index+1})));
 
     try {
         const updateResult = await updateCarouselImageOrder(newOrder);
         if (!updateResult.success) {
+            // Revert optimistic update on failure
             setCarouselImages(carouselImages);
             throw new Error(updateResult.error || "Failed to update image order.");
         }
@@ -464,6 +471,7 @@ const AdminPage = () => {
     } catch (error: any) {
         console.error("Error updating carousel order:", error);
         toast({ title: "Error", description: error.message || "Could not update image order.", variant: "destructive" });
+        // Revert optimistic update on error
         setCarouselImages(carouselImages);
     }
 };
@@ -555,7 +563,7 @@ const AdminPage = () => {
                     <TableCell>{u.email}</TableCell>
                     <TableCell>{u.phoneNumber || 'N/A'}</TableCell>
                     <TableCell>
-                       <Badge variant={isPending ? 'secondary' : 'default'}>
+                       <Badge variant={u.status === UserStatus.ACTIVE ? 'default' : 'secondary'}>
                            {u.status.charAt(0).toUpperCase() + u.status.slice(1)}
                        </Badge>
                     </TableCell>
@@ -605,6 +613,7 @@ const AdminPage = () => {
                 <TableHead>Schedule</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Phone Number</TableHead>
+                 <TableHead>Bio</TableHead>
                 <TableHead>Role</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -612,7 +621,7 @@ const AdminPage = () => {
             <TableBody>
              {trainers.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center text-muted-foreground">No trainers or admins found.</TableCell>
+                  <TableCell colSpan={9} className="text-center text-muted-foreground">No trainers or admins found.</TableCell>
                 </TableRow>
               )}
               {trainers.map((trainer) => (
@@ -623,6 +632,7 @@ const AdminPage = () => {
                   <TableCell>{trainer.schedule}</TableCell>
                   <TableCell>{trainer.email}</TableCell>
                   <TableCell>{trainer.phoneNumber || 'N/A'}</TableCell>
+                  <TableCell className="max-w-xs truncate" title={trainer.bio || ''}>{trainer.bio || 'N/A'}</TableCell>
                    <TableCell>
                        <Badge variant={trainer.role === 'admin' ? 'destructive' : 'default'}>
                            {trainer.role.charAt(0).toUpperCase() + trainer.role.slice(1)}
@@ -680,7 +690,8 @@ const AdminPage = () => {
                   const userName = userInvoice?.name || 'Unknown User';
                   const userEmail = userInvoice?.email || 'N/A';
                    const isUnpaid = !invoice.paid;
-                   const isOverdue = isUnpaid && new Date(invoice.dueDate) < new Date();
+                   const isOverdue = isUnpaid && new Date(invoice.dueDate) < new Date() && !invoice.paid;
+
 
                   return (
                     <TableRow key={invoice.id} className={cn(isUnpaid && "text-destructive dark:text-red-400", isOverdue && "font-semibold")}>
@@ -725,42 +736,44 @@ const AdminPage = () => {
             </Button>
         </CardHeader>
         <CardContent className="space-y-4">
+          {isClient && (
+            <DragDropContext onDragEnd={handleOnDragEnd}>
+              <Droppable droppableId="carouselImages">
+                {(provided) => (
+                  <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-2">
+                      {carouselImages.length === 0 && (
+                          <p className="text-center text-muted-foreground py-4">No carousel images added yet.</p>
+                      )}
+                      {carouselImages.map((image, index) => (
+                        <Draggable key={image.id} draggableId={image.id} index={index}>
+                          {(provided) => (
+                            <Card
+                              ref={provided.innerRef}
+                              {...provided.draggableProps}
+                              {...provided.dragHandleProps}
+                              className="flex items-center p-3 justify-between bg-muted dark:bg-muted/50"
+                            >
+                              <div className="flex items-center space-x-3">
+                                <span className="font-mono text-sm text-muted-foreground w-6 text-center">{image.position}.</span>
+                                <img src={image.url} alt={`Carousel ${image.position}`} className="w-16 h-8 object-cover rounded" data-ai-hint={image.dataAiHint || ''}/>
+                                <span className="text-sm truncate max-w-xs">{image.url}</span>
+                              </div>
 
-          <DragDropContext onDragEnd={handleOnDragEnd}>
-            <Droppable droppableId="carouselImages">
-              {(provided) => (
-                <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-2">
-                     {carouselImages.length === 0 && (
-                        <p className="text-center text-muted-foreground py-4">No carousel images added yet.</p>
-                     )}
-                    {carouselImages.map((image, index) => (
-                      <Draggable key={image.id} draggableId={image.id} index={index}>
-                        {(provided) => (
-                           <Card
-                            ref={provided.innerRef}
-                            {...provided.draggableProps}
-                            {...provided.dragHandleProps}
-                            className="flex items-center p-3 justify-between bg-muted dark:bg-muted/50"
-                           >
-                             <div className="flex items-center space-x-3">
-                               <span className="font-mono text-sm text-muted-foreground w-6 text-center">{image.position}.</span>
-                               <img src={image.url} alt={`Carousel ${image.position}`} className="w-16 h-8 object-cover rounded" />
-                               <span className="text-sm truncate max-w-xs">{image.url}</span>
-                             </div>
-
-                            <Button variant="destructive" size="sm" onClick={(e) => { e.stopPropagation(); handleDeleteImage(image.id);}}>
-                                <Trash2 className="mr-1 h-4 w-4"/>
-                                Delete
-                            </Button>
-                          </Card>
-                        )}
-                      </Draggable>
-                    ))}
-                    {provided.placeholder}
-                 </div>
-              )}
-            </Droppable>
-          </DragDropContext>
+                              <Button variant="destructive" size="sm" onClick={(e) => { e.stopPropagation(); handleDeleteImage(image.id);}}>
+                                  <Trash2 className="mr-1 h-4 w-4"/>
+                                  Delete
+                              </Button>
+                            </Card>
+                          )}
+                        </Draggable>
+                      ))}
+                      {provided.placeholder}
+                  </div>
+                )}
+              </Droppable>
+            </DragDropContext>
+          )}
+          {!isClient && <p className="text-center text-muted-foreground py-4">Loading carousel editor...</p>}
         </CardContent>
       </Card>
 
@@ -1033,7 +1046,7 @@ const AdminPage = () => {
           <DialogHeader>
             <DialogTitle>Add New Client</DialogTitle>
             <DialogDescription>
-              Create a new client account. They will be active immediately.
+              Create a new client account. They will be active by default.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
@@ -1128,5 +1141,3 @@ const AdminPage = () => {
 };
 
 export default AdminPage;
-
-    
