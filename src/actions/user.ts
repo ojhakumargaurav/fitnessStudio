@@ -5,6 +5,7 @@ import prisma from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
 import type { User as PrismaUser } from '@prisma/client';
 import { UserStatus, type UserStatusString } from '@/types/user';
+import { revalidatePath } from 'next/cache';
 
 // Export the User type for frontend use
 export type User = PrismaUser;
@@ -12,34 +13,34 @@ export type User = PrismaUser;
 export async function getUsers(): Promise<User[]> {
   try {
     const users = await prisma.user.findMany({
-        orderBy: [ // Changed to an array of objects
-           { status: 'asc' }, // Pending users first
-           { name: 'asc' },
-        ]
+      where: { isActive: true }, // Only fetch active users
+      orderBy: [
+        { status: 'asc' }, // Pending users first
+        { name: 'asc' },
+      ],
     });
     return users;
   } catch (error) {
     console.error("Error fetching users:", error);
-    // In a real app, you might want to throw the error or return a more specific error object
     return [];
   }
 }
 
 // Omitting 'password' here allows us to redefine it as optional below.
-interface CreateUserInput extends Omit<PrismaUser, 'id' | 'role' | 'status' | 'invoices' | 'bookings' | 'createdAt' | 'updatedAt' | 'password'> {
+interface CreateUserInput extends Omit<PrismaUser, 'id' | 'role' | 'status' | 'invoices' | 'bookings' | 'createdAt' | 'updatedAt' | 'password' | 'isActive'> {
   password?: string; // Password can be undefined in the input, checked by function logic.
   status?: UserStatusString; // Allow setting status on creation (e.g., admin creates active user)
   phoneNumber?: string | null; // Explicitly allow null
 }
 
-interface CreateUserResult {
+interface UserActionResult {
   success: boolean;
   user?: User;
   error?: string;
 }
 
 // Action to create a user (typically by admin or signup)
-export async function createUser(data: CreateUserInput): Promise<CreateUserResult> {
+export async function createUser(data: CreateUserInput): Promise<UserActionResult> {
   const { name, email, password, phoneNumber, status = UserStatus.PENDING } = data;
 
   if (!password) {
@@ -51,11 +52,10 @@ export async function createUser(data: CreateUserInput): Promise<CreateUserResul
     if (existingUser) {
       return { success: false, error: 'User with this email already exists.' };
     }
-     const existingTrainer = await prisma.trainer.findUnique({ where: { email } });
-     if (existingTrainer) {
-        return { success: false, error: 'An account with this email already exists (Trainer/Admin).' };
-     }
-
+    const existingTrainer = await prisma.trainer.findUnique({ where: { email } });
+    if (existingTrainer) {
+      return { success: false, error: 'An account with this email already exists (Trainer/Admin).' };
+    }
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
@@ -65,46 +65,56 @@ export async function createUser(data: CreateUserInput): Promise<CreateUserResul
         email,
         password: hashedPassword,
         phoneNumber: phoneNumber || null,
-        status: status, // Set status (defaulting to pending if not provided)
-        role: 'user', // Users created via this action are always 'user' role
+        status: status,
+        role: 'user',
+        isActive: true, // New users are active by default
       },
     });
+    revalidatePath('/admin');
     return { success: true, user: newUser };
   } catch (error: any) {
     console.error("Error creating user:", error);
-     if (error.code === 'P2002' && error.meta?.target?.includes('email')) {
+    if (error.code === 'P2002' && error.meta?.target?.includes('email')) {
       return { success: false, error: 'User with this email already exists.' };
     }
     return { success: false, error: 'Failed to create user.' };
   }
 }
 
-
-interface UpdateUserStatusResult {
-  success: boolean;
-  user?: User;
-  error?: string;
-}
-
-// Action to update user status (e.g., admin verifies user)
-export async function updateUserStatus(userId: string, newStatus: UserStatusString): Promise<UpdateUserStatusResult> {
+export async function updateUserStatus(userId: string, newStatus: UserStatusString): Promise<UserActionResult> {
   try {
-     // Validate status
-     if (newStatus !== UserStatus.ACTIVE && newStatus !== UserStatus.PENDING) {
-        return { success: false, error: 'Invalid user status provided.' };
-     }
+    if (newStatus !== UserStatus.ACTIVE && newStatus !== UserStatus.PENDING) {
+      return { success: false, error: 'Invalid user status provided.' };
+    }
 
     const updatedUser = await prisma.user.update({
       where: { id: userId },
       data: { status: newStatus },
     });
+    revalidatePath('/admin');
     return { success: true, user: updatedUser };
   } catch (error: any) {
     console.error(`Error updating user status for ${userId}:`, error);
-     if (error.code === 'P2025') { // Record not found
-       return { success: false, error: 'User not found.' };
-     }
+    if (error.code === 'P2025') {
+      return { success: false, error: 'User not found.' };
+    }
     return { success: false, error: 'Failed to update user status.' };
   }
 }
 
+export async function deleteUser(userId: string): Promise<Omit<UserActionResult, 'user'>> {
+  try {
+    await prisma.user.update({
+      where: { id: userId },
+      data: { isActive: false },
+    });
+    revalidatePath('/admin');
+    return { success: true };
+  } catch (error: any) {
+    console.error(`Error deactivating user ${userId}:`, error);
+    if (error.code === 'P2025') {
+      return { success: false, error: 'User not found.' };
+    }
+    return { success: false, error: 'Failed to deactivate user.' };
+  }
+}

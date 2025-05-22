@@ -17,7 +17,7 @@ async function main() {
 
   const admin = await prisma.trainer.upsert({
     where: { email: adminEmail },
-    update: {},
+    update: {isActive: true},
     create: {
       name: 'Gaurav Ojha',
       email: adminEmail,
@@ -28,16 +28,17 @@ async function main() {
       schedule: 'Always available',
       phoneNumber: '123-456-7890',
       bio: 'Oversees site operations and user management.',
+      isActive: true,
     },
   });
-  console.log(`Created admin with id: ${admin.id}`);
+  console.log(`Created/Updated admin with id: ${admin.id}`);
 
   const trainer1Email = 'trainer1@fitnesshub.com';
   const trainer1Password = 'trainerpass1';
   const hashedTrainer1Password = await bcrypt.hash(trainer1Password, 10);
   const trainer1 = await prisma.trainer.upsert({
     where: { email: trainer1Email },
-    update: {},
+    update: {isActive: true},
     create: {
       name: 'Alice Johnson',
       email: trainer1Email,
@@ -48,16 +49,17 @@ async function main() {
       schedule: 'Mon, Wed, Fri 8am-12pm',
       phoneNumber: '555-111-2222',
       bio: 'Alice is a certified Yoga instructor with a passion for helping others find balance and peace through mindful movement.',
+      isActive: true,
     },
   });
-  console.log(`Created trainer1 with id: ${trainer1.id}`);
+  console.log(`Created/Updated trainer1 with id: ${trainer1.id}`);
 
   const trainer2Email = 'trainer2@fitnesshub.com';
     const trainer2Password = 'trainerpass2';
     const hashedTrainer2Password = await bcrypt.hash(trainer2Password, 10);
   const trainer2 = await prisma.trainer.upsert({
     where: { email: trainer2Email },
-    update: {},
+    update: {isActive: true},
     create: {
       name: 'Bob Smith',
       email: trainer2Email,
@@ -68,9 +70,10 @@ async function main() {
       schedule: 'Tue, Thu 1pm-5pm, Sat 9am-1pm',
       phoneNumber: '555-333-4444',
       bio: 'Bob is an experienced strength coach focused on helping clients achieve their powerlifting and bodybuilding goals.',
+      isActive: true,
     },
   });
-   console.log(`Created trainer2 with id: ${trainer2.id}`);
+   console.log(`Created/Updated trainer2 with id: ${trainer2.id}`);
 
 
   const trainer3Email = 'trainer3@fitnesshub.com';
@@ -78,7 +81,7 @@ async function main() {
     const hashedTrainer3Password = await bcrypt.hash(trainer3Password, 10);
   const trainer3 = await prisma.trainer.upsert({
     where: { email: trainer3Email },
-    update: {},
+    update: {isActive: true},
     create: {
       name: 'Charlie Brown',
       email: trainer3Email,
@@ -89,16 +92,17 @@ async function main() {
       schedule: 'Mon-Fri 5pm-9pm',
       phoneNumber: '555-555-6666',
       bio: 'Charlie specializes in high-intensity interval training (HIIT) and endurance running programs.',
+      isActive: true,
     },
   });
-   console.log(`Created trainer3 with id: ${trainer3.id}`);
+   console.log(`Created/Updated trainer3 with id: ${trainer3.id}`);
 
   const user1Email = 'user1@example.com';
     const user1Password = 'userpass1';
     const hashedUser1Password = await bcrypt.hash(user1Password, 10);
   const user1 = await prisma.user.upsert({
       where: { email: user1Email },
-      update: {},
+      update: {isActive: true},
       create: {
           name: 'Active User',
           email: user1Email,
@@ -106,16 +110,17 @@ async function main() {
           role: 'user',
           status: USER_STATUS_ACTIVE,
           phoneNumber: '111-222-3333',
+          isActive: true,
       }
   });
-  console.log(`Created user1 with id: ${user1.id}`);
+  console.log(`Created/Updated user1 with id: ${user1.id}`);
 
   const user2Email = 'user2@example.com';
     const user2Password = 'userpass2';
     const hashedUser2Password = await bcrypt.hash(user2Password, 10);
   const user2 = await prisma.user.upsert({
       where: { email: user2Email },
-      update: {},
+      update: {isActive: true},
       create: {
           name: 'Pending User',
           email: user2Email,
@@ -123,9 +128,10 @@ async function main() {
           role: 'user',
           status: USER_STATUS_PENDING,
           phoneNumber: '444-555-6666',
+          isActive: true,
       }
   });
-   console.log(`Created user2 with id: ${user2.id}`);
+   console.log(`Created/Updated user2 with id: ${user2.id}`);
 
   const tomorrow = addDays(new Date(), 1);
 
@@ -133,7 +139,7 @@ async function main() {
 
   const class1 = await prisma.class.upsert({
     where: { name_date_startTime: { name: 'Morning Yoga', date: tomorrow, startTime: '09:00' } },
-    update: {},
+    update: {}, // No isActive for Class model yet, can add if needed
     create: {
       name: 'Morning Yoga',
       description: 'Start your day with energizing yoga flow.',
@@ -147,6 +153,8 @@ async function main() {
     },
   });
   console.log(`Created class1 with id: ${class1.id}`);
+
+  // ... (similar updates for other classes if they were to have isActive)
 
   const class2 = await prisma.class.upsert({
       where: { name_date_startTime: { name: 'Strength Fundamentals', date: tomorrow, startTime: '11:00' } },
@@ -182,7 +190,6 @@ async function main() {
     });
      console.log(`Created class3 with id: ${class3.id}`);
 
-
    const class4 = await prisma.class.upsert({
         where: { name_date_startTime: { name: 'Evening Flow Yoga', date: tomorrow, startTime: '18:00' } },
         update: {},
@@ -217,7 +224,8 @@ async function main() {
       });
         console.log(`Created class5 with id: ${class5.id}`);
 
-  if (user1.status === USER_STATUS_ACTIVE) {
+  // Ensure user1 is active before booking. isActive check is now part of User model
+  if (user1.status === USER_STATUS_ACTIVE && user1.isActive) {
       await prisma.classBooking.upsert({
           where: { classId_userId: { classId: class1.id, userId: user1.id } },
           update: {},
@@ -258,6 +266,52 @@ async function main() {
         )
     );
     console.log(`Re-sequenced carousel image positions.`);
+
+  // Create some invoices, some paid, some unpaid
+  const invoice1 = await prisma.invoice.upsert({
+      where: { id: 'seed-invoice-1' }, // Use a predictable ID for upsert
+      update: {isActive: true},
+      create: {
+          id: 'seed-invoice-1',
+          userId: user1.id,
+          amount: 50.00,
+          dueDate: addDays(new Date(), 30),
+          paid: false,
+          isActive: true,
+      }
+  });
+  console.log(`Created/Updated invoice1 for user1`);
+
+  if (user2.isActive) { // Ensure user2 is active for invoicing
+    const invoice2 = await prisma.invoice.upsert({
+        where: { id: 'seed-invoice-2' },
+        update: {isActive: true},
+        create: {
+            id: 'seed-invoice-2',
+            userId: user2.id,
+            amount: 75.00,
+            dueDate: addDays(new Date(), -5), // Overdue
+            paid: false,
+            isActive: true,
+        }
+    });
+    console.log(`Created/Updated invoice2 for user2 (overdue)`);
+
+    const invoice3 = await prisma.invoice.upsert({
+        where: { id: 'seed-invoice-3' },
+        update: {isActive: true},
+        create: {
+            id: 'seed-invoice-3',
+            userId: user1.id, // Another for user1
+            amount: 100.00,
+            dueDate: addDays(new Date(), 10),
+            paid: true,
+            paymentDate: new Date(),
+            isActive: true,
+        }
+    });
+    console.log(`Created/Updated invoice3 for user1 (paid)`);
+  }
 
 
   console.log(`Seeding finished.`);

@@ -21,9 +21,10 @@ interface ActionResult<T = null> {
 export async function getTrainers(): Promise<Trainer[]> {
   try {
     const trainers = await prisma.trainer.findMany({
-        orderBy: [ // Changed to an array of objects
+        where: { isActive: true }, // Only fetch active trainers
+        orderBy: [
             { role: 'asc' }, // Admins first
-            { name: 'asc' }  // Then by name
+            { name: 'asc' }
         ]
     });
     return trainers;
@@ -37,7 +38,7 @@ interface CreateTrainerInput {
   name: string;
   email: string;
   password?: string;
-  role: TrainerRoleString; // Use the string literal type
+  role: TrainerRoleString;
   specialization: string;
   experience: number;
   schedule: string;
@@ -51,7 +52,7 @@ export async function createTrainer(data: CreateTrainerInput): Promise<ActionRes
   if (!password) {
     return { success: false, error: 'Password is required to create a trainer/admin.' };
   }
-  if (role !== 'admin' && role !== 'trainer') { // Validate against string literals
+  if (role !== 'admin' && role !== 'trainer') {
     return { success: false, error: 'Invalid role specified. Must be "admin" or "trainer".' };
   }
 
@@ -78,6 +79,7 @@ export async function createTrainer(data: CreateTrainerInput): Promise<ActionRes
         schedule,
         phoneNumber: phoneNumber || null,
         bio: bio || null,
+        isActive: true, // New trainers are active by default
       },
     });
     revalidatePath('/admin');
@@ -96,18 +98,18 @@ interface UpdateTrainerInput {
   name?: string;
   email?: string;
   password?: string;
-  role?: TrainerRoleString; // Use the string literal type
+  role?: TrainerRoleString;
   specialization?: string;
   experience?: number;
   schedule?: string;
   phoneNumber?: string;
   bio?: string;
+  isActive?: boolean; // Allow updating isActive status
 }
 
 export async function updateTrainer(id: string, data: UpdateTrainerInput): Promise<ActionResult<{ trainer: Trainer }>> {
   try {
     const updateData: Partial<PrismaTrainer> & { password?: string } = { ...data };
-
 
     if (data.password) {
       if (data.password.trim() !== "") {
@@ -129,14 +131,13 @@ export async function updateTrainer(id: string, data: UpdateTrainerInput): Promi
           return { success: false, error: 'New email is already in use by another trainer/admin.' };
         }
     }
-    if (data.role && data.role !== 'admin' && data.role !== 'trainer') { // Validate against string literals
+    if (data.role && data.role !== 'admin' && data.role !== 'trainer') {
         return { success: false, error: 'Invalid role specified. Must be "admin" or "trainer".' };
     }
 
-
     const updatedTrainer = await prisma.trainer.update({
       where: { id },
-      data: updateData as any, // Cast to any to satisfy Prisma's stricter update type for now
+      data: updateData as any,
     });
     revalidatePath('/admin');
     revalidatePath('/trainers');
@@ -155,17 +156,18 @@ export async function updateTrainer(id: string, data: UpdateTrainerInput): Promi
 
 export async function deleteTrainer(id: string): Promise<ActionResult> {
   try {
-    await prisma.trainer.delete({
+    await prisma.trainer.update({
       where: { id },
+      data: { isActive: false }, // Soft delete
     });
     revalidatePath('/admin');
     revalidatePath('/trainers');
     return { success: true };
   } catch (error: any) {
-    console.error('Error deleting trainer/admin:', error);
+    console.error('Error deactivating trainer/admin:', error);
     if (error.code === 'P2025') {
        return { success: false, error: 'Trainer/Admin not found.' };
     }
-    return { success: false, error: 'Failed to delete trainer/admin.' };
+    return { success: false, error: 'Failed to deactivate trainer/admin.' };
   }
 }

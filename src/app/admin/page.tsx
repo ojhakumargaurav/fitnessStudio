@@ -1,10 +1,10 @@
 
 'use client';
 
-import {useAuth} from '@/hooks/useAuth';
+import {useAuth}from '@/hooks/useAuth';
 import {useRouter}from 'next/navigation';
-import {useEffect, useState, useMemo} from 'react'; // Added useMemo
-import { format } from 'date-fns'; // Import date-fns for formatting
+import {useEffect, useState, useMemo} from 'react';
+import { format } from 'date-fns';
 import {
   Card,
   CardContent,
@@ -13,54 +13,51 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import {Button} from "@/components/ui/button"
+import {Button}from "@/components/ui/button"
 import {
   Table,
   TableBody,
-  TableCaption,
   TableCell,
-  TableFooter,
   TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
 import {Input}from "@/components/ui/input";
-import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogClose, DialogFooter} from "@/components/ui/dialog"; // Added DialogFooter
+import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogClose, DialogFooter} from "@/components/ui/dialog";
 import {Label}from "@/components/ui/label";
 import {Textarea}from "@/components/ui/textarea";
-import {Trainer, TrainerRoleString} from "@/actions/trainer"; // Import Trainer type and RoleString from action
-import type {User}from "@/actions/user"; // Import User type from action
-import { UserStatus, type UserStatusString } from "@/types/user"; // Import UserStatus object/types
-import {Plus, Edit, Trash2, FileText, History, UserPlus, ImagePlus, CheckSquare, TrendingUp} from "lucide-react"; // Added TrendingUp
+import {Trainer, TrainerRoleString}from "@/actions/trainer";
+import type {User}from "@/actions/user";
+import { UserStatus, type UserStatusString } from "@/types/user";
+import {Plus, Edit, Trash2, FileText, History, UserPlus, ImagePlus, CheckSquare, TrendingUp, RotateCcw, EyeOff } from "lucide-react"; // Added RotateCcw, EyeOff
 import {cn}from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
-import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@/components/ui/select"; // Ensure Select components are imported
-import {getUsers, createUser, updateUserStatus} from '@/actions/user'; // Import user server actions
-import { getTrainers, createTrainer, updateTrainer, deleteTrainer } from '@/actions/trainer'; // Import trainer server actions
-import { getInvoices, createInvoice, markInvoiceAsPaid, Invoice } from '@/actions/invoice'; // Import invoice server actions
-import { getCarouselImages, addCarouselImage, deleteCarouselImage, updateCarouselImageOrder, CarouselImage } from '@/actions/carousel'; // Import carousel server actions
+import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue}from "@/components/ui/select";
+import {getUsers, createUser, updateUserStatus, deleteUser as softDeleteUserAction} from '@/actions/user'; // Renamed import for clarity
+import { getTrainers, createTrainer, updateTrainer, deleteTrainer as softDeleteTrainerAction } from '@/actions/trainer'; // Renamed import
+import { getInvoices, createInvoice, markInvoiceAsPaid, deleteInvoice as softDeleteInvoiceAction, Invoice } from '@/actions/invoice'; // Renamed import
+import { getCarouselImages, addCarouselImage, deleteCarouselImage, updateCarouselImageOrder, CarouselImage } from '@/actions/carousel';
 import { useToast } from '@/hooks/use-toast';
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer } from "recharts"; // Import Recharts components
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer } from "recharts";
 import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
   ChartConfig,
-} from "@/components/ui/chart"; // Import ShadCN chart components
+} from "@/components/ui/chart";
 
 
-// --- Chart Configuration ---
 const chartConfig = {
   total: {
     label: "Earnings ($)",
-    color: "hsl(var(--primary))", // Use theme's primary color
+    color: "hsl(var(--primary))",
   },
 } satisfies ChartConfig;
 
 
 const AdminPage = () => {
-  const {user, isLoading: isAuthLoading } = useAuth(); // Include auth loading state
+  const {user, isLoading: isAuthLoading } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
   const [users, setUsers] = useState<User[]>([]);
@@ -68,7 +65,6 @@ const AdminPage = () => {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [carouselImages, setCarouselImages] = useState<CarouselImage[]>([]);
 
-  // Trainer Management State
   const [openTrainerDialog, setOpenTrainerDialog] = useState(false);
   const [editingTrainer, setEditingTrainer] = useState<Trainer | null>(null);
   const [trainerName, setTrainerName] = useState('');
@@ -81,7 +77,6 @@ const AdminPage = () => {
   const [trainerRole, setTrainerRole] = useState<TrainerRoleString>('trainer');
   const [trainerBio, setTrainerBio] = useState('');
 
-  // Invoice Management State
   const [openInvoiceDialog, setOpenInvoiceDialog] = useState(false);
   const [selectedUserForInvoice, setSelectedUserForInvoice] = useState<User | null>(null);
   const [invoiceAmount, setInvoiceAmount] = useState('');
@@ -92,21 +87,19 @@ const AdminPage = () => {
   const [openMarkPaidDialog, setOpenMarkPaidDialog] = useState(false);
   const [invoiceToMarkPaid, setInvoiceToMarkPaid] = useState<Invoice | null>(null);
 
-  // User Management State (For adding new users via admin)
   const [openUserDialog, setOpenUserDialog] = useState(false);
   const [userName, setUserName] = useState('');
   const [userEmail, setUserEmail] = useState('');
   const [userPassword, setUserPassword] = useState('');
   const [userPhoneNumber, setUserPhoneNumber] = useState('');
 
-  // Carousel Image Management State
   const [openImageDialog, setOpenImageDialog] = useState(false);
   const [newImageUrl, setNewImageUrl] = useState('');
   const [isLoadingData, setIsLoadingData] = useState(true);
-  const [isClient, setIsClient] = useState(false); // State to ensure client-side rendering for DND
+  const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
-    setIsClient(true); // Component has mounted
+    setIsClient(true);
   }, []);
 
 
@@ -127,9 +120,9 @@ const AdminPage = () => {
                     getInvoices(),
                     getCarouselImages()
                 ]);
-                setUsers(userList);
-                setTrainers(trainerList);
-                setInvoices(invoiceList);
+                setUsers(userList.filter(u => u.isActive)); // Filter for active users
+                setTrainers(trainerList.filter(t => t.isActive)); // Filter for active trainers
+                setInvoices(invoiceList.filter(i => i.isActive)); // Filter for active invoices
                 setCarouselImages(imageList.sort((a, b) => a.position - b.position));
             } catch (error) {
                 console.error("Error fetching admin data:", error);
@@ -140,11 +133,11 @@ const AdminPage = () => {
         };
         fetchData();
     }
-  }, [user, toast]); // Removed toast from dependencies as it should be stable
+  }, [user, toast]);
 
 
    const monthlyEarningsData = useMemo(() => {
-    const paidInvoices = invoices.filter((inv) => inv.paid && inv.paymentDate);
+    const paidInvoices = invoices.filter((inv) => inv.paid && inv.paymentDate && inv.isActive); // Consider only active invoices
     const monthlyTotals: { [key: string]: number } = {};
 
     paidInvoices.forEach((invoice) => {
@@ -208,9 +201,9 @@ const AdminPage = () => {
       schedule: trainerSchedule,
       email: trainerEmail,
       password: trainerPassword,
-      phoneNumber: trainerPhoneNumber || undefined, // Pass undefined if empty for Prisma optional field
+      phoneNumber: trainerPhoneNumber || undefined,
       role: trainerRole,
-      bio: trainerBio || undefined, // Pass undefined if empty
+      bio: trainerBio || undefined,
     };
 
     try {
@@ -221,7 +214,7 @@ const AdminPage = () => {
                  password: trainerPassword ? trainerPassword : undefined
              });
              if (result.success && result.data?.trainer) {
-                setTrainers(trainers.map(t => t.id === result.data!.trainer!.id ? result.data!.trainer! : t));
+                setTrainers(trainers.map(t => t.id === result.data!.trainer!.id ? result.data!.trainer! : t).filter(t => t.isActive));
                 toast({ title: "Success", description: "Trainer/Admin updated successfully." });
             } else {
                 throw new Error(result.error || "Failed to update trainer/admin");
@@ -233,7 +226,7 @@ const AdminPage = () => {
             }
              result = await createTrainer({ ...trainerData, password: trainerPassword });
              if (result.success && result.data?.trainer) {
-                setTrainers([...trainers, result.data.trainer]);
+                setTrainers([...trainers, result.data.trainer].filter(t => t.isActive));
                 toast({ title: "Success", description: "Trainer/Admin added successfully." });
              } else {
                  throw new Error(result.error || "Failed to add trainer/admin");
@@ -246,21 +239,21 @@ const AdminPage = () => {
     }
   };
 
-  const handleDeleteTrainer = async (trainerId: string) => {
-    if (!confirm("Are you sure you want to delete this trainer/admin? This action cannot be undone.")) {
+  const handleSoftDeleteTrainer = async (trainerId: string) => {
+    if (!confirm("Are you sure you want to deactivate this trainer/admin? They will be hidden from active lists.")) {
         return;
     }
     try {
-        const result = await deleteTrainer(trainerId);
+        const result = await softDeleteTrainerAction(trainerId);
         if (result.success) {
-            setTrainers(trainers.filter(t => t.id !== trainerId));
-            toast({ title: "Success", description: "Trainer/Admin deleted successfully." });
+            setTrainers(trainers.filter(t => t.id !== trainerId)); // Remove from UI
+            toast({ title: "Success", description: "Trainer/Admin deactivated successfully." });
         } else {
-             throw new Error(result.error || "Failed to delete trainer/admin");
+             throw new Error(result.error || "Failed to deactivate trainer/admin");
         }
     } catch (error: any) {
-        console.error("Error deleting trainer/admin:", error);
-        toast({ title: "Error", description: error.message || "Could not delete trainer/admin.", variant: "destructive" });
+        console.error("Error deactivating trainer/admin:", error);
+        toast({ title: "Error", description: error.message || "Could not deactivate trainer/admin.", variant: "destructive" });
     }
   };
 
@@ -290,7 +283,7 @@ const AdminPage = () => {
             dueDate: invoiceDueDate,
         });
         if (result.success && result.data?.invoice) {
-            setInvoices([...invoices, result.data.invoice]);
+            setInvoices([...invoices, result.data.invoice].filter(i => i.isActive));
             toast({ title: "Success", description: "Invoice generated successfully." });
              setOpenInvoiceDialog(false);
         } else {
@@ -319,7 +312,7 @@ const AdminPage = () => {
     try {
       const result = await markInvoiceAsPaid(invoiceToMarkPaid.id, paymentDate);
       if (result.success && result.data?.invoice) {
-        setInvoices(invoices.map(inv => inv.id === result.data!.invoice!.id ? result.data!.invoice! : inv));
+        setInvoices(invoices.map(inv => inv.id === result.data!.invoice!.id ? result.data!.invoice! : inv).filter(i => i.isActive));
         toast({ title: "Success", description: "Invoice marked as paid." });
         setOpenMarkPaidDialog(false);
         setInvoiceToMarkPaid(null);
@@ -339,7 +332,7 @@ const AdminPage = () => {
   };
 
   const getUnpaidInvoice = (userId: string): Invoice | undefined => {
-    return invoices.find(invoice => invoice.userId === userId && !invoice.paid);
+    return invoices.find(invoice => invoice.userId === userId && !invoice.paid && invoice.isActive);
   };
 
 
@@ -363,11 +356,11 @@ const AdminPage = () => {
         email: userEmail,
         password: userPassword,
         phoneNumber: userPhoneNumber || undefined,
-        status: UserStatus.ACTIVE as UserStatusString // Admin created users are active by default
+        status: UserStatus.ACTIVE as UserStatusString
       });
 
       if (result.success && result.user) {
-        setUsers([...users, result.user]);
+        setUsers([...users, result.user].filter(u => u.isActive));
         toast({ title: "Success", description: "User added successfully." });
         setOpenUserDialog(false);
       } else {
@@ -386,7 +379,7 @@ const AdminPage = () => {
     try {
         const result = await updateUserStatus(userId, UserStatus.ACTIVE as UserStatusString);
         if (result.success && result.user) {
-            setUsers(users.map(u => u.id === userId ? result.user! : u));
+            setUsers(users.map(u => u.id === userId ? result.user! : u).filter(u => u.isActive));
             toast({ title: "Success", description: "User verified and activated." });
         } else {
             throw new Error(result.error || "Failed to verify user.");
@@ -396,6 +389,43 @@ const AdminPage = () => {
         toast({ title: "Error", description: error.message || "Could not verify user.", variant: "destructive" });
     }
   };
+
+  const handleSoftDeleteUser = async (userId: string) => {
+    if (!confirm("Are you sure you want to deactivate this user? They will be hidden from active lists.")) {
+        return;
+    }
+    try {
+        const result = await softDeleteUserAction(userId);
+        if (result.success) {
+            setUsers(users.filter(u => u.id !== userId));
+            toast({ title: "Success", description: "User deactivated successfully." });
+        } else {
+             throw new Error(result.error || "Failed to deactivate user.");
+        }
+    } catch (error: any) {
+        console.error("Error deactivating user:", error);
+        toast({ title: "Error", description: error.message || "Could not deactivate user.", variant: "destructive" });
+    }
+  };
+
+  const handleSoftDeleteInvoice = async (invoiceId: string) => {
+    if (!confirm("Are you sure you want to deactivate this invoice? It will be hidden from active lists.")) {
+        return;
+    }
+    try {
+        const result = await softDeleteInvoiceAction(invoiceId);
+        if (result.success) {
+            setInvoices(invoices.filter(i => i.id !== invoiceId));
+            toast({ title: "Success", description: "Invoice deactivated successfully." });
+        } else {
+             throw new Error(result.error || "Failed to deactivate invoice.");
+        }
+    } catch (error: any) {
+        console.error("Error deactivating invoice:", error);
+        toast({ title: "Error", description: error.message || "Could not deactivate invoice.", variant: "destructive" });
+    }
+  };
+
 
   const handleOpenImageDialog = () => {
     setNewImageUrl('');
@@ -434,7 +464,7 @@ const AdminPage = () => {
         const result = await deleteCarouselImage(imageId);
         if (result.success) {
              const updatedImages = carouselImages.filter(img => img.id !== imageId);
-             setCarouselImages(updatedImages.sort((a,b)=> a.position - b.position)); // Re-sort after deletion
+             setCarouselImages(updatedImages.sort((a,b)=> a.position - b.position));
              toast({ title: "Success", description: "Image deleted successfully." });
         } else {
              throw new Error(result.error || "Failed to delete image.");
@@ -457,13 +487,11 @@ const AdminPage = () => {
         position: index + 1
     }));
 
-    // Optimistically update UI
     setCarouselImages(items.map((item, index)=> ({...item, position: index+1})));
 
     try {
         const updateResult = await updateCarouselImageOrder(newOrder);
         if (!updateResult.success) {
-            // Revert optimistic update on failure
             setCarouselImages(carouselImages);
             throw new Error(updateResult.error || "Failed to update image order.");
         }
@@ -471,7 +499,6 @@ const AdminPage = () => {
     } catch (error: any) {
         console.error("Error updating carousel order:", error);
         toast({ title: "Error", description: error.message || "Could not update image order.", variant: "destructive" });
-        // Revert optimistic update on error
         setCarouselImages(carouselImages);
     }
 };
@@ -480,7 +507,7 @@ const AdminPage = () => {
   return (
     <div className="container mx-auto py-10">
       <h1 className="text-3xl font-bold mb-5 text-primary">Admin Dashboard</h1>
-      <p className="text-muted-foreground mb-8">Manage users, trainers, invoices, and site content.</p>
+      <p className="text-muted-foreground mb-8">Manage users, trainers, invoices, and site content. Inactive items are hidden by default.</p>
 
       <Card className="mb-8 shadow-md">
          <CardHeader>
@@ -527,7 +554,7 @@ const AdminPage = () => {
         <CardHeader className="flex flex-row items-center justify-between">
            <div>
              <CardTitle>Users (Gym Clients)</CardTitle>
-             <CardDescription>View and manage registered clients.</CardDescription>
+             <CardDescription>View and manage active registered clients.</CardDescription>
            </div>
            <Button onClick={handleOpenUserDialog}>
              <UserPlus className="mr-2 h-4 w-4"/>
@@ -548,7 +575,7 @@ const AdminPage = () => {
             <TableBody>
               {users.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center text-muted-foreground">No users found.</TableCell>
+                  <TableCell colSpan={5} className="text-center text-muted-foreground">No active users found.</TableCell>
                 </TableRow>
               )}
               {users.map((u) => {
@@ -582,6 +609,10 @@ const AdminPage = () => {
                         <History className="mr-1 h-4 w-4"/>
                         Payment History
                       </Button>
+                      <Button variant="destructive" size="sm" onClick={() => handleSoftDeleteUser(u.id)}>
+                        <EyeOff className="mr-1 h-4 w-4"/>
+                        Deactivate
+                      </Button>
                     </TableCell>
                   </TableRow>
                 );
@@ -595,7 +626,7 @@ const AdminPage = () => {
         <CardHeader className="flex flex-row items-center justify-between">
            <div>
              <CardTitle>Trainers & Admins</CardTitle>
-             <CardDescription>Manage trainers and administrators.</CardDescription>
+             <CardDescription>Manage active trainers and administrators.</CardDescription>
            </div>
           <Button onClick={()=> handleOpenTrainerDialog()}>
               <Plus className="mr-2 h-4 w-4"/>
@@ -603,7 +634,6 @@ const AdminPage = () => {
             </Button>
         </CardHeader>
         <CardContent className="space-y-4">
-
           <Table>
             <TableHeader>
               <TableRow>
@@ -621,7 +651,7 @@ const AdminPage = () => {
             <TableBody>
              {trainers.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center text-muted-foreground">No trainers or admins found.</TableCell>
+                  <TableCell colSpan={9} className="text-center text-muted-foreground">No active trainers or admins found.</TableCell>
                 </TableRow>
               )}
               {trainers.map((trainer) => (
@@ -646,12 +676,12 @@ const AdminPage = () => {
                     <Button
                         variant="destructive"
                         size="sm"
-                        onClick={() => handleDeleteTrainer(trainer.id)}
+                        onClick={() => handleSoftDeleteTrainer(trainer.id)}
                         disabled={user?.id === trainer.id && trainer.role === 'admin'}
-                        title={user?.id === trainer.id && trainer.role === 'admin' ? "Cannot delete your own admin account" : "Delete Trainer/Admin"}
+                        title={user?.id === trainer.id && trainer.role === 'admin' ? "Cannot deactivate your own admin account" : "Deactivate Trainer/Admin"}
                         >
-                      <Trash2 className="mr-1 h-4 w-4"/>
-                      Delete
+                      <EyeOff className="mr-1 h-4 w-4"/>
+                      Deactivate
                     </Button>
                   </TableCell>
                 </TableRow>
@@ -662,9 +692,12 @@ const AdminPage = () => {
       </Card>
 
        <Card className="mb-8 shadow-md">
-        <CardHeader>
-          <CardTitle>Invoices</CardTitle>
-          <CardDescription>Overview of all generated invoices.</CardDescription>
+        <CardHeader className="flex flex-row items-center justify-between">
+           <div>
+            <CardTitle>Invoices</CardTitle>
+            <CardDescription>Overview of all active generated invoices.</CardDescription>
+           </div>
+           {/* Add Invoice button could be here if needed, or tied to a user */}
         </CardHeader>
         <CardContent className="space-y-4">
           <Table>
@@ -682,16 +715,15 @@ const AdminPage = () => {
             <TableBody>
              {invoices.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-muted-foreground">No invoices found.</TableCell>
+                  <TableCell colSpan={7} className="text-center text-muted-foreground">No active invoices found.</TableCell>
                 </TableRow>
               )}
               {invoices.map((invoice) => {
-                  const userInvoice = users.find(u => u.id === invoice.userId);
-                  const userName = userInvoice?.name || 'Unknown User';
+                  const userInvoice = users.find(u => u.id === invoice.userId); // users state is already filtered for active
+                  const userName = userInvoice?.name || 'User N/A';
                   const userEmail = userInvoice?.email || 'N/A';
                    const isUnpaid = !invoice.paid;
                    const isOverdue = isUnpaid && new Date(invoice.dueDate) < new Date() && !invoice.paid;
-
 
                   return (
                     <TableRow key={invoice.id} className={cn(isUnpaid && "text-destructive dark:text-red-400", isOverdue && "font-semibold")}>
@@ -709,12 +741,16 @@ const AdminPage = () => {
                         )}
                       </TableCell>
                       <TableCell>{invoice.paymentDate ? new Date(invoice.paymentDate).toLocaleDateString() : "N/A"}</TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-right space-x-2">
                         {!invoice.paid && (
                            <Button variant="outline" size="sm" onClick={() => handleOpenMarkPaidDialog(invoice)}>
                                 Mark as Paid
                            </Button>
                         )}
+                        <Button variant="destructive" size="sm" onClick={() => handleSoftDeleteInvoice(invoice.id)}>
+                            <EyeOff className="mr-1 h-4 w-4"/>
+                            Deactivate
+                        </Button>
                       </TableCell>
                     </TableRow>
                   );
@@ -777,8 +813,7 @@ const AdminPage = () => {
         </CardContent>
       </Card>
 
-      {/* --- DIALOGS --- */}
-
+      {/* DIALOGS */}
       <Dialog open={openTrainerDialog} onOpenChange={setOpenTrainerDialog}>
         <DialogContent>
           <DialogHeader>
@@ -789,121 +824,47 @@ const AdminPage = () => {
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="trainerName" className="text-right">
-                Name
-              </Label>
+              <Label htmlFor="trainerName" className="text-right">Name</Label>
               <Input id="trainerName" value={trainerName} onChange={(e) => setTrainerName(e.target.value)} className="col-span-3" required/>
             </div>
              <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="trainerEmail" className="text-right">
-                Email
-              </Label>
-              <Input
-                id="trainerEmail"
-                type="email"
-                value={trainerEmail}
-                onChange={(e) => setTrainerEmail(e.target.value)}
-                className="col-span-3"
-                required
-              />
+              <Label htmlFor="trainerEmail" className="text-right">Email</Label>
+              <Input id="trainerEmail" type="email" value={trainerEmail} onChange={(e) => setTrainerEmail(e.target.value)} className="col-span-3" required />
             </div>
              <div className="grid grid-cols-4 items-center gap-4">
-               <Label htmlFor="trainerPassword" className="text-right">
-                 Password
-               </Label>
-               <Input
-                 id="trainerPassword"
-                 type="password"
-                 value={trainerPassword}
-                 onChange={(e) => setTrainerPassword(e.target.value)}
-                 className="col-span-3"
-                 placeholder={editingTrainer ? "Leave blank to keep current" : "Required"}
-                 required={!editingTrainer}
-               />
+               <Label htmlFor="trainerPassword" className="text-right">Password</Label>
+               <Input id="trainerPassword" type="password" value={trainerPassword} onChange={(e) => setTrainerPassword(e.target.value)} className="col-span-3" placeholder={editingTrainer ? "Leave blank to keep current" : "Required"} required={!editingTrainer}/>
              </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="specialization" className="text-right">
-                Specialization
-              </Label>
-              <Input
-                id="specialization"
-                value={trainerSpecialization}
-                onChange={(e) => setTrainerSpecialization(e.target.value)}
-                className="col-span-3"
-                 required
-                 placeholder="e.g., Yoga, Strength"
-              />
+              <Label htmlFor="specialization" className="text-right">Specialization</Label>
+              <Input id="specialization" value={trainerSpecialization} onChange={(e) => setTrainerSpecialization(e.target.value)} className="col-span-3" required placeholder="e.g., Yoga, Strength"/>
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="experience" className="text-right">
-                Experience (Yrs)
-              </Label>
-              <Input
-                id="experience"
-                type="number"
-                 min="0"
-                value={trainerExperience}
-                onChange={(e) => setTrainerExperience(e.target.value)}
-                className="col-span-3"
-                 required
-              />
+              <Label htmlFor="experience" className="text-right">Experience (Yrs)</Label>
+              <Input id="experience" type="number" min="0" value={trainerExperience} onChange={(e) => setTrainerExperience(e.target.value)} className="col-span-3" required />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="schedule" className="text-right">
-                Schedule
-              </Label>
-              <Input
-                id="schedule"
-                value={trainerSchedule}
-                onChange={(e) => setTrainerSchedule(e.target.value)}
-                className="col-span-3"
-                placeholder="e.g., Mon-Fri 9am-5pm"
-                 required
-              />
+              <Label htmlFor="schedule" className="text-right">Schedule</Label>
+              <Input id="schedule" value={trainerSchedule} onChange={(e) => setTrainerSchedule(e.target.value)} className="col-span-3" placeholder="e.g., Mon-Fri 9am-5pm" required />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="trainerPhoneNumber" className="text-right">
-                Phone (Optional)
-              </Label>
-              <Input
-                id="trainerPhoneNumber"
-                type="tel"
-                value={trainerPhoneNumber}
-                onChange={(e) => setTrainerPhoneNumber(e.target.value)}
-                className="col-span-3"
-              />
+              <Label htmlFor="trainerPhoneNumber" className="text-right">Phone (Optional)</Label>
+              <Input id="trainerPhoneNumber" type="tel" value={trainerPhoneNumber} onChange={(e) => setTrainerPhoneNumber(e.target.value)} className="col-span-3"/>
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="trainerBio" className="text-right">
-                Bio (Optional)
-              </Label>
-              <Textarea
-                id="trainerBio"
-                value={trainerBio}
-                onChange={(e) => setTrainerBio(e.target.value)}
-                className="col-span-3"
-                placeholder="Tell us a bit about this trainer/admin..."
-              />
+              <Label htmlFor="trainerBio" className="text-right">Bio (Optional)</Label>
+              <Textarea id="trainerBio" value={trainerBio} onChange={(e) => setTrainerBio(e.target.value)} className="col-span-3" placeholder="Tell us a bit about this trainer/admin..."/>
             </div>
              <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="role" className="text-right">
-                Role
-              </Label>
+              <Label htmlFor="role" className="text-right">Role</Label>
                 <Select value={trainerRole} onValueChange={(value) => setTrainerRole(value as TrainerRoleString)} required>
-                    <SelectTrigger className="col-span-3">
-                    <SelectValue placeholder="Select role" />
-                    </SelectTrigger>
-                    <SelectContent>
-                    <SelectItem value="trainer">Trainer</SelectItem>
-                    <SelectItem value="admin">Admin</SelectItem>
-                    </SelectContent>
+                    <SelectTrigger className="col-span-3"> <SelectValue placeholder="Select role" /> </SelectTrigger>
+                    <SelectContent> <SelectItem value="trainer">Trainer</SelectItem> <SelectItem value="admin">Admin</SelectItem> </SelectContent>
               </Select>
             </div>
           </div>
           <DialogFooter>
-             <DialogClose asChild>
-                <Button type="button" variant="outline">Cancel</Button>
-             </DialogClose>
+             <DialogClose asChild> <Button type="button" variant="outline">Cancel</Button> </DialogClose>
             <Button onClick={handleSaveTrainer}>Save</Button>
           </DialogFooter>
         </DialogContent>
@@ -913,45 +874,20 @@ const AdminPage = () => {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Generate Invoice</DialogTitle>
-            <DialogDescription>
-              Create a new invoice for {selectedUserForInvoice?.name}.
-            </DialogDescription>
+            <DialogDescription>Create a new invoice for {selectedUserForInvoice?.name}.</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="amount" className="text-right">
-                Amount ($)
-              </Label>
-              <Input
-                id="amount"
-                type="number"
-                min="0.01"
-                step="0.01"
-                value={invoiceAmount}
-                onChange={(e) => setInvoiceAmount(e.target.value)}
-                className="col-span-3"
-                required
-              />
+              <Label htmlFor="amount" className="text-right">Amount ($)</Label>
+              <Input id="amount" type="number" min="0.01" step="0.01" value={invoiceAmount} onChange={(e) => setInvoiceAmount(e.target.value)} className="col-span-3" required />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="dueDate" className="text-right">
-                Due Date
-              </Label>
-              <Input
-                id="dueDate"
-                type="date"
-                value={invoiceDueDate}
-                onChange={(e) => setInvoiceDueDate(e.target.value)}
-                 min={new Date().toISOString().split("T")[0]}
-                className="col-span-3"
-                required
-              />
+              <Label htmlFor="dueDate" className="text-right">Due Date</Label>
+              <Input id="dueDate" type="date" value={invoiceDueDate} onChange={(e) => setInvoiceDueDate(e.target.value)} min={new Date().toISOString().split("T")[0]} className="col-span-3" required />
             </div>
           </div>
           <DialogFooter>
-             <DialogClose asChild>
-                <Button type="button" variant="outline">Cancel</Button>
-             </DialogClose>
+             <DialogClose asChild> <Button type="button" variant="outline">Cancel</Button> </DialogClose>
             <Button onClick={handleGenerateInvoice}>Generate Invoice</Button>
           </DialogFooter>
         </DialogContent>
@@ -961,30 +897,16 @@ const AdminPage = () => {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Mark Invoice as Paid</DialogTitle>
-             <DialogDescription>
-              Confirm payment for invoice #{invoiceToMarkPaid?.id.substring(0, 8)}... for ${invoiceToMarkPaid?.amount.toFixed(2)}.
-            </DialogDescription>
+             <DialogDescription>Confirm payment for invoice #{invoiceToMarkPaid?.id.substring(0, 8)}... for ${invoiceToMarkPaid?.amount.toFixed(2)}.</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="paymentDate" className="text-right">
-                Payment Date
-              </Label>
-              <Input
-                id="paymentDate"
-                type="date"
-                value={paymentDate}
-                onChange={(e) => setPaymentDate(e.target.value)}
-                 max={new Date().toISOString().split("T")[0]}
-                className="col-span-3"
-                 required
-              />
+              <Label htmlFor="paymentDate" className="text-right">Payment Date</Label>
+              <Input id="paymentDate" type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} max={new Date().toISOString().split("T")[0]} className="col-span-3" required/>
             </div>
           </div>
           <DialogFooter>
-             <DialogClose asChild>
-               <Button type="button" variant="outline">Cancel</Button>
-             </DialogClose>
+             <DialogClose asChild> <Button type="button" variant="outline">Cancel</Button> </DialogClose>
             <Button onClick={handleMarkAsPaid}>Mark as Paid</Button>
           </DialogFooter>
         </DialogContent>
@@ -995,9 +917,7 @@ const AdminPage = () => {
         <DialogContent className="sm:max-w-[625px]">
           <DialogHeader>
             <DialogTitle>Payment History</DialogTitle>
-            <DialogDescription>
-              Showing paid invoices for {selectedUserPaymentHistory?.name}.
-            </DialogDescription>
+            <DialogDescription>Showing paid invoices for {selectedUserPaymentHistory?.name}.</DialogDescription>
           </DialogHeader>
           <CardContent className="space-y-4 max-h-[60vh] overflow-y-auto">
             <Table>
@@ -1012,7 +932,7 @@ const AdminPage = () => {
               </TableHeader>
               <TableBody>
                 {invoices
-                  .filter((invoice) => invoice.userId === selectedUserPaymentHistory?.id && invoice.paid)
+                  .filter((invoice) => invoice.userId === selectedUserPaymentHistory?.id && invoice.paid && invoice.isActive) // Filter active paid invoices
                   .sort((a, b) => new Date(b.paymentDate || 0).getTime() - new Date(a.paymentDate || 0).getTime())
                   .map((invoice) => (
                     <TableRow key={invoice.id}>
@@ -1020,12 +940,10 @@ const AdminPage = () => {
                       <TableCell>${invoice.amount.toFixed(2)}</TableCell>
                       <TableCell>{new Date(invoice.dueDate).toLocaleDateString()}</TableCell>
                       <TableCell>{invoice.paymentDate ? new Date(invoice.paymentDate).toLocaleDateString() : 'N/A'}</TableCell>
-                      <TableCell>
-                        <Badge variant="default">Paid</Badge>
-                      </TableCell>
+                      <TableCell><Badge variant="default">Paid</Badge></TableCell>
                     </TableRow>
                   ))}
-                 {invoices.filter((invoice) => invoice.userId === selectedUserPaymentHistory?.id && invoice.paid).length === 0 && (
+                 {invoices.filter((invoice) => invoice.userId === selectedUserPaymentHistory?.id && invoice.paid && invoice.isActive).length === 0 && (
                     <TableRow>
                         <TableCell colSpan={5} className="text-center text-muted-foreground">No paid invoices found for this user.</TableCell>
                     </TableRow>
@@ -1033,11 +951,7 @@ const AdminPage = () => {
               </TableBody>
             </Table>
           </CardContent>
-           <DialogFooter>
-                <DialogClose asChild>
-                    <Button type="button" variant="outline">Close</Button>
-                </DialogClose>
-           </DialogFooter>
+           <DialogFooter> <DialogClose asChild> <Button type="button" variant="outline">Close</Button> </DialogClose> </DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -1045,60 +959,28 @@ const AdminPage = () => {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Add New Client</DialogTitle>
-            <DialogDescription>
-              Create a new client account. They will be active by default.
-            </DialogDescription>
+            <DialogDescription>Create a new client account. They will be active by default.</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="userName" className="text-right">
-                Name
-              </Label>
+              <Label htmlFor="userName" className="text-right">Name</Label>
               <Input id="userName" value={userName} onChange={(e) => setUserName(e.target.value)} className="col-span-3" required />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="userEmail" className="text-right">
-                Email
-              </Label>
-              <Input
-                id="userEmail"
-                type="email"
-                value={userEmail}
-                onChange={(e) => setUserEmail(e.target.value)}
-                className="col-span-3"
-                required
-              />
+              <Label htmlFor="userEmail" className="text-right">Email</Label>
+              <Input id="userEmail" type="email" value={userEmail} onChange={(e) => setUserEmail(e.target.value)} className="col-span-3" required/>
             </div>
              <div className="grid grid-cols-4 items-center gap-4">
-               <Label htmlFor="userPassword" className="text-right">
-                 Password
-               </Label>
-               <Input
-                 id="userPassword"
-                 type="password"
-                 value={userPassword}
-                 onChange={(e) => setUserPassword(e.target.value)}
-                 className="col-span-3"
-                 required
-               />
+               <Label htmlFor="userPassword" className="text-right">Password</Label>
+               <Input id="userPassword" type="password" value={userPassword} onChange={(e) => setUserPassword(e.target.value)} className="col-span-3" required/>
              </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="userPhoneNumber" className="text-right">
-                Phone (Optional)
-              </Label>
-              <Input
-                id="userPhoneNumber"
-                type="tel"
-                value={userPhoneNumber}
-                onChange={(e) => setUserPhoneNumber(e.target.value)}
-                className="col-span-3"
-              />
+              <Label htmlFor="userPhoneNumber" className="text-right">Phone (Optional)</Label>
+              <Input id="userPhoneNumber" type="tel" value={userPhoneNumber} onChange={(e) => setUserPhoneNumber(e.target.value)} className="col-span-3"/>
             </div>
           </div>
           <DialogFooter>
-             <DialogClose asChild>
-                <Button type="button" variant="outline">Cancel</Button>
-             </DialogClose>
+             <DialogClose asChild> <Button type="button" variant="outline">Cancel</Button> </DialogClose>
             <Button onClick={handleSaveUser}>Add Client</Button>
           </DialogFooter>
         </DialogContent>
@@ -1108,30 +990,16 @@ const AdminPage = () => {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Add Image to Carousel</DialogTitle>
-            <DialogDescription>
-              Enter the publicly accessible URL of the image.
-            </DialogDescription>
+            <DialogDescription>Enter the publicly accessible URL of the image.</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="imageUrl" className="text-right">
-                Image URL
-              </Label>
-              <Input
-                id="imageUrl"
-                type="url"
-                value={newImageUrl}
-                onChange={(e) => setNewImageUrl(e.target.value)}
-                 placeholder="https://example.com/image.jpg"
-                className="col-span-3"
-                required
-              />
+              <Label htmlFor="imageUrl" className="text-right">Image URL</Label>
+              <Input id="imageUrl" type="url" value={newImageUrl} onChange={(e) => setNewImageUrl(e.target.value)} placeholder="https://example.com/image.jpg" className="col-span-3" required />
             </div>
           </div>
           <DialogFooter>
-            <DialogClose asChild>
-                <Button type="button" variant="outline">Cancel</Button>
-            </DialogClose>
+            <DialogClose asChild> <Button type="button" variant="outline">Cancel</Button> </DialogClose>
             <Button onClick={handleAddImage}>Add Image</Button>
           </DialogFooter>
         </DialogContent>
