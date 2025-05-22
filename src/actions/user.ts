@@ -12,10 +12,10 @@ export type User = PrismaUser;
 export async function getUsers(): Promise<User[]> {
   try {
     const users = await prisma.user.findMany({
-        orderBy: { // Optional: order by status then name
-           status: 'asc', // Pending users first
-           name: 'asc',
-        }
+        orderBy: [ // Changed to an array of objects
+           { status: 'asc' }, // Pending users first
+           { name: 'asc' },
+        ]
     });
     return users;
   } catch (error) {
@@ -29,6 +29,7 @@ export async function getUsers(): Promise<User[]> {
 interface CreateUserInput extends Omit<PrismaUser, 'id' | 'role' | 'status' | 'invoices' | 'bookings' | 'createdAt' | 'updatedAt' | 'password'> {
   password?: string; // Password can be undefined in the input, checked by function logic.
   status?: UserStatusString; // Allow setting status on creation (e.g., admin creates active user)
+  phoneNumber?: string | null; // Explicitly allow null
 }
 
 interface CreateUserResult {
@@ -106,3 +107,4 @@ export async function updateUserStatus(userId: string, newStatus: UserStatusStri
     return { success: false, error: 'Failed to update user status.' };
   }
 }
+
