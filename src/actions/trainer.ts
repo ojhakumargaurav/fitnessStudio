@@ -21,10 +21,10 @@ interface ActionResult<T = null> {
 export async function getTrainers(): Promise<Trainer[]> {
   try {
     const trainers = await prisma.trainer.findMany({
-        orderBy: {
-            role: 'asc', // Admins first, then trainers
-            name: 'asc'
-        }
+        orderBy: [ // Changed to an array of objects
+            { role: 'asc' }, // Admins first
+            { name: 'asc' }  // Then by name
+        ]
     });
     return trainers;
   } catch (error) {
