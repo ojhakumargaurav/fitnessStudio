@@ -9,37 +9,43 @@ generator client {
 }
 
 model User {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   name        String
-  email       String   @unique
+  email       String    @unique
   password    String
   phoneNumber String?
-  role        String   @default("user") // 'user'
-  status      String   // 'pending' or 'active'
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  role        String    @default("user") // Should always be 'user'
+  status      String    @default("pending") // 'pending' or 'active'
+  isActive    Boolean   @default(true) // For soft delete
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   bookings ClassBooking[]
   invoices Invoice[]
+
+  @@index([email])
 }
 
 model Trainer {
-  id             String   @id @default(cuid())
+  id             String  @id @default(cuid())
   name           String
-  email          String   @unique
+  email          String  @unique
   password       String
-  role           String   // 'admin' or 'trainer'
+  role           String // 'admin' or 'trainer'
   specialization String
   experience     Int
   schedule       String
   phoneNumber    String?
   bio            String?
-  isActive       Boolean  @default(true)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  isActive       Boolean @default(true) // For soft delete
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   classes Class[]
+
+  @@index([email])
 }
 
 model Class {
@@ -52,15 +58,19 @@ model Class {
   endTime        String // e.g., "10:00"
   capacity       Int
   availableSlots Int
-  trainerId      String
   isActive       Boolean  @default(true)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
 
-  trainer  Trainer        @relation(fields: [trainerId], references: [id])
+  trainerId String
+  trainer   Trainer  @relation(fields: [trainerId], references: [id])
+
   bookings ClassBooking[]
 
-  @@unique([name, date, startTime]) // Ensure a class with the same name, date, and start time is unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([name, date, startTime]) // Ensure a class with the same name, date, and time is unique
+  @@index([date])
+  @@index([category])
 }
 
 model ClassBooking {
@@ -69,36 +79,41 @@ model ClassBooking {
   userId      String
   bookingDate DateTime @default(now())
   isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
 
   class Class @relation(fields: [classId], references: [id])
   user  User  @relation(fields: [userId], references: [id])
 
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@unique([classId, userId])
-  @@map("booking") // Maps this model to the "booking" table in the database
+  @@map("booking") // Maps to the database table named "booking"
 }
 
 model Invoice {
-  id          String    @id @default(cuid())
+  id          String   @id @default(cuid())
   userId      String
   amount      Float
   dueDate     DateTime
-  paid        Boolean   @default(false)
+  paid        Boolean  @default(false)
   paymentDate DateTime?
-  isActive    Boolean   @default(true)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  isActive    Boolean  @default(true) // For soft delete
 
   user User @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
 }
 
 model CarouselImage {
-  id         String  @id @default(cuid())
-  url        String
-  position   Int     @unique // To maintain order
-  dataAiHint String? // For AI-based image search hints
-  isActive   Boolean @default(true)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id        String  @id @default(cuid())
+  url       String
+  position  Int     @unique // To maintain order
+  dataAiHint String? // For AI hint if using placeholder.co or similar
+  isActive  Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
