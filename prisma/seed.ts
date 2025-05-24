@@ -139,7 +139,7 @@ async function main() {
 
   const class1 = await prisma.class.upsert({
     where: { name_date_startTime: { name: 'Morning Yoga', date: tomorrow, startTime: '09:00' } },
-    update: {}, // No isActive for Class model yet, can add if needed
+    update: {},
     create: {
       name: 'Morning Yoga',
       description: 'Start your day with energizing yoga flow.',
@@ -153,8 +153,6 @@ async function main() {
     },
   });
   console.log(`Created class1 with id: ${class1.id}`);
-
-  // ... (similar updates for other classes if they were to have isActive)
 
   const class2 = await prisma.class.upsert({
       where: { name_date_startTime: { name: 'Strength Fundamentals', date: tomorrow, startTime: '11:00' } },
@@ -224,7 +222,6 @@ async function main() {
       });
         console.log(`Created class5 with id: ${class5.id}`);
 
-  // Ensure user1 is active before booking. isActive check is now part of User model
   if (user1.status === USER_STATUS_ACTIVE && user1.isActive) {
       await prisma.classBooking.upsert({
           where: { classId_userId: { classId: class1.id, userId: user1.id } },
@@ -267,9 +264,8 @@ async function main() {
     );
     console.log(`Re-sequenced carousel image positions.`);
 
-  // Create some invoices, some paid, some unpaid
   const invoice1 = await prisma.invoice.upsert({
-      where: { id: 'seed-invoice-1' }, // Use a predictable ID for upsert
+      where: { id: 'seed-invoice-1' },
       update: {isActive: true},
       create: {
           id: 'seed-invoice-1',
@@ -282,7 +278,7 @@ async function main() {
   });
   console.log(`Created/Updated invoice1 for user1`);
 
-  if (user2.isActive) { // Ensure user2 is active for invoicing
+  if (user2.isActive) {
     const invoice2 = await prisma.invoice.upsert({
         where: { id: 'seed-invoice-2' },
         update: {isActive: true},
