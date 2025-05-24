@@ -26,17 +26,17 @@ import {Input}from "@/components/ui/input";
 import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogClose, DialogFooter} from "@/components/ui/dialog";
 import {Label}from "@/components/ui/label";
 import {Textarea}from "@/components/ui/textarea";
-import {Trainer, TrainerRoleString}from "@/actions/trainer";
+import type {Trainer, TrainerRoleString}from "@/actions/trainer"; // Use type for better safety
 import type {User}from "@/actions/user";
 import { UserStatus, type UserStatusString } from "@/types/user";
-import {Plus, Edit, Trash2, FileText, History, UserPlus, ImagePlus, CheckSquare, TrendingUp, RotateCcw, EyeOff } from "lucide-react"; // Added RotateCcw, EyeOff
+import {Plus, Edit, Trash2, FileText, History, UserPlus, ImagePlus, CheckSquare, TrendingUp, EyeOff } from "lucide-react"; // Removed RotateCcw, ensure EyeOff is used for deactivate
 import {cn}from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue}from "@/components/ui/select";
-import {getUsers, createUser, updateUserStatus, deleteUser as softDeleteUserAction} from '@/actions/user'; // Renamed import for clarity
-import { getTrainers, createTrainer, updateTrainer, deleteTrainer as softDeleteTrainerAction } from '@/actions/trainer'; // Renamed import
-import { getInvoices, createInvoice, markInvoiceAsPaid, deleteInvoice as softDeleteInvoiceAction, Invoice } from '@/actions/invoice'; // Renamed import
+import {getUsers, createUser, updateUserStatus, deleteUser as softDeleteUserAction} from '@/actions/user';
+import { getTrainers, createTrainer, updateTrainer, deleteTrainer as softDeleteTrainerAction } from '@/actions/trainer';
+import { getInvoices, createInvoice, markInvoiceAsPaid, deleteInvoice as softDeleteInvoiceAction, Invoice } from '@/actions/invoice';
 import { getCarouselImages, addCarouselImage, deleteCarouselImage, updateCarouselImageOrder, CarouselImage } from '@/actions/carousel';
 import { useToast } from '@/hooks/use-toast';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer } from "recharts";
@@ -120,10 +120,12 @@ const AdminPage = () => {
                     getInvoices(),
                     getCarouselImages()
                 ]);
-                setUsers(userList.filter(u => u.isActive)); // Filter for active users
-                setTrainers(trainerList.filter(t => t.isActive)); // Filter for active trainers
-                setInvoices(invoiceList.filter(i => i.isActive)); // Filter for active invoices
-                setCarouselImages(imageList.sort((a, b) => a.position - b.position));
+                // Server actions should already filter by isActive: true.
+                // Client-side filtering is an additional safeguard for display.
+                setUsers(userList.filter(u => u.isActive));
+                setTrainers(trainerList.filter(t => t.isActive));
+                setInvoices(invoiceList.filter(i => i.isActive));
+                setCarouselImages(imageList.filter(img => img.isActive).sort((a, b) => a.position - b.position));
             } catch (error) {
                 console.error("Error fetching admin data:", error);
                 toast({ title: "Error", description: "Failed to load dashboard data.", variant: "destructive" });
@@ -137,7 +139,7 @@ const AdminPage = () => {
 
 
    const monthlyEarningsData = useMemo(() => {
-    const paidInvoices = invoices.filter((inv) => inv.paid && inv.paymentDate && inv.isActive); // Consider only active invoices
+    const paidInvoices = invoices.filter((inv) => inv.paid && inv.paymentDate && inv.isActive);
     const monthlyTotals: { [key: string]: number } = {};
 
     paidInvoices.forEach((invoice) => {
@@ -152,7 +154,7 @@ const AdminPage = () => {
       .sort((a, b) => a.month.localeCompare(b.month));
 
     return sortedEarnings.map(item => ({
-      month: format(new Date(item.month + '-01T00:00:00'), 'MMM yyyy'),
+      month: format(new Date(item.month + '-01T00:00:00'), 'MMM yyyy'), // Ensure proper date object for formatting
       total: item.total,
     }));
   }, [invoices]);
@@ -174,7 +176,7 @@ const AdminPage = () => {
     setTrainerExperience(trainerToEdit?.experience.toString() || '');
     setTrainerSchedule(trainerToEdit?.schedule || '');
     setTrainerEmail(trainerToEdit?.email || '');
-    setTrainerPassword('');
+    setTrainerPassword(''); // Always clear password for edit dialog
     setTrainerPhoneNumber(trainerToEdit?.phoneNumber || '');
     setTrainerRole(trainerToEdit?.role as TrainerRoleString || 'trainer');
     setTrainerBio(trainerToEdit?.bio || '');
@@ -184,13 +186,13 @@ const AdminPage = () => {
 
   const handleSaveTrainer = async () => {
     const experienceNum = parseInt(trainerExperience);
-    if (isNaN(experienceNum)) {
-        toast({ title: "Error", description: "Experience must be a number.", variant: "destructive" });
+    if (isNaN(experienceNum) || experienceNum < 0) { // Add check for negative experience
+        toast({ title: "Error", description: "Experience must be a non-negative number.", variant: "destructive" });
         return;
     }
 
-    if (!trainerName || !trainerSpecialization || !trainerEmail || (!editingTrainer && !trainerPassword) || !trainerRole) {
-         toast({ title: "Error", description: "Please fill in all required trainer/admin fields (including password for new ones and role).", variant: "destructive" });
+    if (!trainerName || !trainerSpecialization || !trainerEmail || (!editingTrainer && !trainerPassword) || !trainerRole || !trainerSchedule) {
+         toast({ title: "Error", description: "Please fill in all required trainer/admin fields (Name, Email, Specialization, Experience, Schedule, Role, and Password for new ones).", variant: "destructive" });
         return;
     }
 
@@ -200,7 +202,7 @@ const AdminPage = () => {
       experience: experienceNum,
       schedule: trainerSchedule,
       email: trainerEmail,
-      password: trainerPassword,
+      // Password will be handled conditionally below
       phoneNumber: trainerPhoneNumber || undefined,
       role: trainerRole,
       bio: trainerBio || undefined,
@@ -211,21 +213,24 @@ const AdminPage = () => {
         if (editingTrainer) {
              result = await updateTrainer(editingTrainer.id, {
                  ...trainerData,
-                 password: trainerPassword ? trainerPassword : undefined
+                 // Only send password if it's not empty
+                 password: trainerPassword.trim() ? trainerPassword.trim() : undefined
              });
              if (result.success && result.data?.trainer) {
+                // Update the trainer in the list, ensuring isActive status from response
                 setTrainers(trainers.map(t => t.id === result.data!.trainer!.id ? result.data!.trainer! : t).filter(t => t.isActive));
                 toast({ title: "Success", description: "Trainer/Admin updated successfully." });
             } else {
                 throw new Error(result.error || "Failed to update trainer/admin");
             }
         } else {
-            if (!trainerPassword) {
+            if (!trainerPassword.trim()) { // Ensure password is not just spaces for new trainer
                 toast({ title: "Error", description: "Password is required for new trainers/admins.", variant: "destructive" });
                 return;
             }
-             result = await createTrainer({ ...trainerData, password: trainerPassword });
+             result = await createTrainer({ ...trainerData, password: trainerPassword.trim() });
              if (result.success && result.data?.trainer) {
+                // Add the new trainer to the list, assuming it's active
                 setTrainers([...trainers, result.data.trainer].filter(t => t.isActive));
                 toast({ title: "Success", description: "Trainer/Admin added successfully." });
              } else {
@@ -246,7 +251,7 @@ const AdminPage = () => {
     try {
         const result = await softDeleteTrainerAction(trainerId);
         if (result.success) {
-            setTrainers(trainers.filter(t => t.id !== trainerId)); // Remove from UI
+            setTrainers(prevTrainers => prevTrainers.filter(t => t.id !== trainerId)); // Update local state
             toast({ title: "Success", description: "Trainer/Admin deactivated successfully." });
         } else {
              throw new Error(result.error || "Failed to deactivate trainer/admin");
@@ -267,7 +272,7 @@ const AdminPage = () => {
 
   const handleGenerateInvoice = async () => {
     if (!selectedUserForInvoice || !invoiceAmount || !invoiceDueDate) {
-         toast({ title: "Error", description: "Please provide amount and due date.", variant: "destructive" });
+         toast({ title: "Error", description: "Please provide user, amount, and due date.", variant: "destructive" });
          return;
     }
     const amount = parseFloat(invoiceAmount);
@@ -283,9 +288,9 @@ const AdminPage = () => {
             dueDate: invoiceDueDate,
         });
         if (result.success && result.data?.invoice) {
-            setInvoices([...invoices, result.data.invoice].filter(i => i.isActive));
+            setInvoices(prevInvoices => [...prevInvoices, result.data!.invoice!].filter(i => i.isActive));
             toast({ title: "Success", description: "Invoice generated successfully." });
-             setOpenInvoiceDialog(false);
+            setOpenInvoiceDialog(false);
         } else {
             throw new Error(result.error || "Failed to generate invoice");
         }
@@ -298,21 +303,21 @@ const AdminPage = () => {
 
   const handleOpenMarkPaidDialog = (invoice: Invoice) => {
     setInvoiceToMarkPaid(invoice);
-    setPaymentDate(new Date().toISOString().split('T')[0]);
+    setPaymentDate(new Date().toISOString().split('T')[0]); // Default to today
     setOpenMarkPaidDialog(true);
   };
 
 
  const handleMarkAsPaid = async () => {
     if (!invoiceToMarkPaid || !paymentDate) {
-      toast({ title: "Error", description: "Please select a payment date.", variant: "destructive" });
+      toast({ title: "Error", description: "Invoice or payment date is missing.", variant: "destructive" });
       return;
     }
 
     try {
       const result = await markInvoiceAsPaid(invoiceToMarkPaid.id, paymentDate);
       if (result.success && result.data?.invoice) {
-        setInvoices(invoices.map(inv => inv.id === result.data!.invoice!.id ? result.data!.invoice! : inv).filter(i => i.isActive));
+        setInvoices(prevInvoices => prevInvoices.map(inv => inv.id === result.data!.invoice!.id ? result.data!.invoice! : inv).filter(i => i.isActive));
         toast({ title: "Success", description: "Invoice marked as paid." });
         setOpenMarkPaidDialog(false);
         setInvoiceToMarkPaid(null);
@@ -346,7 +351,7 @@ const AdminPage = () => {
 
   const handleSaveUser = async () => {
      if (!userName || !userEmail || !userPassword) {
-        toast({ title: "Error", description: "Please fill in name, email, and password.", variant: "destructive" });
+        toast({ title: "Error", description: "Please fill in name, email, and password for the client.", variant: "destructive" });
         return;
      }
 
@@ -356,19 +361,19 @@ const AdminPage = () => {
         email: userEmail,
         password: userPassword,
         phoneNumber: userPhoneNumber || undefined,
-        status: UserStatus.ACTIVE as UserStatusString
+        status: UserStatus.ACTIVE as UserStatusString // Admin created users are active
       });
 
       if (result.success && result.user) {
-        setUsers([...users, result.user].filter(u => u.isActive));
-        toast({ title: "Success", description: "User added successfully." });
+        setUsers(prevUsers => [...prevUsers, result.user!].filter(u => u.isActive));
+        toast({ title: "Success", description: "Client added successfully." });
         setOpenUserDialog(false);
       } else {
-        throw new Error(result.error || "Failed to add user");
+        throw new Error(result.error || "Failed to add client");
       }
     } catch (error: any) {
-      console.error("Error adding user:", error);
-      toast({ title: "Error", description: error.message || "Could not add user.", variant: "destructive" });
+      console.error("Error adding client:", error);
+      toast({ title: "Error", description: error.message || "Could not add client.", variant: "destructive" });
     }
   };
 
@@ -379,7 +384,7 @@ const AdminPage = () => {
     try {
         const result = await updateUserStatus(userId, UserStatus.ACTIVE as UserStatusString);
         if (result.success && result.user) {
-            setUsers(users.map(u => u.id === userId ? result.user! : u).filter(u => u.isActive));
+            setUsers(prevUsers => prevUsers.map(u => u.id === userId ? result.user! : u).filter(u => u.isActive));
             toast({ title: "Success", description: "User verified and activated." });
         } else {
             throw new Error(result.error || "Failed to verify user.");
@@ -397,7 +402,7 @@ const AdminPage = () => {
     try {
         const result = await softDeleteUserAction(userId);
         if (result.success) {
-            setUsers(users.filter(u => u.id !== userId));
+            setUsers(prevUsers => prevUsers.filter(u => u.id !== userId));
             toast({ title: "Success", description: "User deactivated successfully." });
         } else {
              throw new Error(result.error || "Failed to deactivate user.");
@@ -415,7 +420,7 @@ const AdminPage = () => {
     try {
         const result = await softDeleteInvoiceAction(invoiceId);
         if (result.success) {
-            setInvoices(invoices.filter(i => i.id !== invoiceId));
+            setInvoices(prevInvoices => prevInvoices.filter(i => i.id !== invoiceId));
             toast({ title: "Success", description: "Invoice deactivated successfully." });
         } else {
              throw new Error(result.error || "Failed to deactivate invoice.");
@@ -441,10 +446,10 @@ const AdminPage = () => {
     try {
         const nextPosition = carouselImages.length > 0 ? Math.max(...carouselImages.map(img => img.position)) + 1 : 1;
 
-        const result = await addCarouselImage(newImageUrl, nextPosition);
+        const result = await addCarouselImage(newImageUrl, nextPosition); // Pass dataAiHint if needed
         if (result.success && result.data?.image) {
              const updatedImages = [...carouselImages, result.data.image].sort((a, b) => a.position - b.position);
-             setCarouselImages(updatedImages);
+             setCarouselImages(updatedImages.filter(img => img.isActive));
              toast({ title: "Success", description: "Image added successfully." });
              setOpenImageDialog(false);
         } else {
@@ -461,10 +466,11 @@ const AdminPage = () => {
       return;
     }
      try {
-        const result = await deleteCarouselImage(imageId);
+        const result = await deleteCarouselImage(imageId); // This should be a soft delete if implemented
         if (result.success) {
-             const updatedImages = carouselImages.filter(img => img.id !== imageId);
-             setCarouselImages(updatedImages.sort((a,b)=> a.position - b.position));
+             // Assuming deleteCarouselImage is a soft delete and returns success
+             // The image list will be refetched or filtered based on isActive
+             setCarouselImages(prevImages => prevImages.filter(img => img.id !== imageId).sort((a,b)=> a.position - b.position));
              toast({ title: "Success", description: "Image deleted successfully." });
         } else {
              throw new Error(result.error || "Failed to delete image.");
@@ -487,19 +493,21 @@ const AdminPage = () => {
         position: index + 1
     }));
 
+    // Optimistically update UI
     setCarouselImages(items.map((item, index)=> ({...item, position: index+1})));
 
     try {
         const updateResult = await updateCarouselImageOrder(newOrder);
         if (!updateResult.success) {
-            setCarouselImages(carouselImages);
+            // Revert UI on failure
+            setCarouselImages(carouselImages); // Revert to original order
             throw new Error(updateResult.error || "Failed to update image order.");
         }
          toast({ title: "Success", description: "Image order updated." });
     } catch (error: any) {
         console.error("Error updating carousel order:", error);
         toast({ title: "Error", description: error.message || "Could not update image order.", variant: "destructive" });
-        setCarouselImages(carouselImages);
+        setCarouselImages(carouselImages); // Revert to original order on error
     }
 };
 
@@ -515,7 +523,7 @@ const AdminPage = () => {
              <TrendingUp className="h-5 w-5 text-primary" />
              Monthly Earnings
            </CardTitle>
-           <CardDescription>Total earnings from paid invoices each month.</CardDescription>
+           <CardDescription>Total earnings from paid invoices each month (active invoices only).</CardDescription>
          </CardHeader>
          <CardContent>
           {monthlyEarningsData.length > 0 ? (
@@ -554,7 +562,7 @@ const AdminPage = () => {
         <CardHeader className="flex flex-row items-center justify-between">
            <div>
              <CardTitle>Users (Gym Clients)</CardTitle>
-             <CardDescription>View and manage active registered clients.</CardDescription>
+             <CardDescription>View and manage active registered clients. Pending users are highlighted.</CardDescription>
            </div>
            <Button onClick={handleOpenUserDialog}>
              <UserPlus className="mr-2 h-4 w-4"/>
@@ -697,7 +705,6 @@ const AdminPage = () => {
             <CardTitle>Invoices</CardTitle>
             <CardDescription>Overview of all active generated invoices.</CardDescription>
            </div>
-           {/* Add Invoice button could be here if needed, or tied to a user */}
         </CardHeader>
         <CardContent className="space-y-4">
           <Table>
@@ -719,7 +726,7 @@ const AdminPage = () => {
                 </TableRow>
               )}
               {invoices.map((invoice) => {
-                  const userInvoice = users.find(u => u.id === invoice.userId); // users state is already filtered for active
+                  const userInvoice = users.find(u => u.id === invoice.userId);
                   const userName = userInvoice?.name || 'User N/A';
                   const userEmail = userInvoice?.email || 'N/A';
                    const isUnpaid = !invoice.paid;
@@ -727,7 +734,7 @@ const AdminPage = () => {
 
                   return (
                     <TableRow key={invoice.id} className={cn(isUnpaid && "text-destructive dark:text-red-400", isOverdue && "font-semibold")}>
-                     <TableCell>{userName} ({invoice.userId.substring(0, 6)}...)</TableCell>
+                     <TableCell>{userName} (ID: ...{invoice.userId.substring(invoice.userId.length - 6)})</TableCell>
                      <TableCell>{userEmail}</TableCell>
                       <TableCell>${invoice.amount.toFixed(2)}</TableCell>
                       <TableCell>{new Date(invoice.dueDate).toLocaleDateString()}</TableCell>

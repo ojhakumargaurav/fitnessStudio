@@ -31,6 +31,8 @@ interface CreateUserInput extends Omit<PrismaUser, 'id' | 'role' | 'status' | 'i
   password?: string; // Password can be undefined in the input, checked by function logic.
   status?: UserStatusString; // Allow setting status on creation (e.g., admin creates active user)
   phoneNumber?: string | null; // Explicitly allow null
+  name: string;
+  email: string;
 }
 
 interface UserActionResult {
@@ -46,6 +48,10 @@ export async function createUser(data: CreateUserInput): Promise<UserActionResul
   if (!password) {
     return { success: false, error: 'Password is required to create a user.' };
   }
+  if (!name || !email) {
+    return { success: false, error: 'Name and email are required.' };
+  }
+
 
   try {
     const existingUser = await prisma.user.findUnique({ where: { email } });
@@ -65,8 +71,8 @@ export async function createUser(data: CreateUserInput): Promise<UserActionResul
         email,
         password: hashedPassword,
         phoneNumber: phoneNumber || null,
-        status: status,
-        role: 'user',
+        status: status, // Set status (e.g., 'active' if admin creates, 'pending' for signup)
+        role: 'user', // Always 'user'
         isActive: true, // New users are active by default
       },
     });
@@ -88,7 +94,7 @@ export async function updateUserStatus(userId: string, newStatus: UserStatusStri
     }
 
     const updatedUser = await prisma.user.update({
-      where: { id: userId },
+      where: { id: userId, isActive: true }, // Ensure we only update active users' status
       data: { status: newStatus },
     });
     revalidatePath('/admin');
@@ -96,17 +102,19 @@ export async function updateUserStatus(userId: string, newStatus: UserStatusStri
   } catch (error: any) {
     console.error(`Error updating user status for ${userId}:`, error);
     if (error.code === 'P2025') {
-      return { success: false, error: 'User not found.' };
+      // P2025 means "Record to update not found." which could be due to ID or isActive: false
+      return { success: false, error: 'Active user not found or invalid ID.' };
     }
     return { success: false, error: 'Failed to update user status.' };
   }
 }
 
+// Soft delete a user
 export async function deleteUser(userId: string): Promise<Omit<UserActionResult, 'user'>> {
   try {
     await prisma.user.update({
       where: { id: userId },
-      data: { isActive: false },
+      data: { isActive: false }, // Set isActive to false
     });
     revalidatePath('/admin');
     return { success: true };

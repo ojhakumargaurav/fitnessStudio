@@ -37,7 +37,7 @@ export async function getTrainers(): Promise<Trainer[]> {
 interface CreateTrainerInput {
   name: string;
   email: string;
-  password?: string;
+  password?: string; // Password is required by logic, but optional here to match form state
   role: TrainerRoleString;
   specialization: string;
   experience: number;
@@ -54,6 +54,9 @@ export async function createTrainer(data: CreateTrainerInput): Promise<ActionRes
   }
   if (role !== 'admin' && role !== 'trainer') {
     return { success: false, error: 'Invalid role specified. Must be "admin" or "trainer".' };
+  }
+  if (!name || !email || !specialization || experience < 0 || !schedule) {
+    return { success: false, error: 'Missing required fields for trainer/admin.'};
   }
 
   try {
@@ -104,40 +107,45 @@ interface UpdateTrainerInput {
   schedule?: string;
   phoneNumber?: string;
   bio?: string;
-  isActive?: boolean; // Allow updating isActive status
+  isActive?: boolean; // Allow explicitly updating isActive status if needed, though usually handled by deleteTrainer
 }
 
 export async function updateTrainer(id: string, data: UpdateTrainerInput): Promise<ActionResult<{ trainer: Trainer }>> {
   try {
-    const updateData: Partial<PrismaTrainer> & { password?: string } = { ...data };
+    const updateData: Partial<Omit<PrismaTrainer, 'id'|'createdAt'|'updatedAt'>> & { password?: string } = { ...data };
 
-    if (data.password) {
-      if (data.password.trim() !== "") {
+
+    if (data.password && data.password.trim() !== "") {
         updateData.password = await bcrypt.hash(data.password, 10);
-      } else {
-        delete updateData.password;
-      }
     } else {
-        delete updateData.password;
+        delete updateData.password; // Don't update password if empty or not provided
     }
 
+
     if (data.email) {
-        const existingUser = await prisma.user.findUnique({ where: { email: data.email } });
-        if (existingUser) {
-          return { success: false, error: 'New email is already in use by a client account.' };
-        }
-        const existingTrainer = await prisma.trainer.findFirst({ where: { email: data.email, NOT: { id } } });
-        if (existingTrainer) {
-          return { success: false, error: 'New email is already in use by another trainer/admin.' };
+        const trainerToUpdate = await prisma.trainer.findUnique({ where: {id}});
+        if (trainerToUpdate && trainerToUpdate.email !== data.email) { // Email is being changed
+            const existingUser = await prisma.user.findUnique({ where: { email: data.email } });
+            if (existingUser) {
+              return { success: false, error: 'New email is already in use by a client account.' };
+            }
+            const existingTrainer = await prisma.trainer.findFirst({ where: { email: data.email, NOT: { id } } });
+            if (existingTrainer) {
+              return { success: false, error: 'New email is already in use by another trainer/admin.' };
+            }
         }
     }
     if (data.role && data.role !== 'admin' && data.role !== 'trainer') {
         return { success: false, error: 'Invalid role specified. Must be "admin" or "trainer".' };
     }
 
+    // Ensure isActive is not unintentionally set to false during a normal update
+    // if it's not explicitly passed. Prisma handles undefined fields by not updating them.
+    // If data.isActive is explicitly false or true, it will be updated.
+
     const updatedTrainer = await prisma.trainer.update({
       where: { id },
-      data: updateData as any,
+      data: updateData,
     });
     revalidatePath('/admin');
     revalidatePath('/trainers');
@@ -147,18 +155,19 @@ export async function updateTrainer(id: string, data: UpdateTrainerInput): Promi
     if (error.code === 'P2002' && error.meta?.target?.includes('email')) {
       return { success: false, error: 'This email is already registered.' };
     }
-    if (error.code === 'P2025') {
+    if (error.code === 'P2025') { // Record to update not found.
        return { success: false, error: 'Trainer/Admin not found.' };
     }
     return { success: false, error: 'Failed to update trainer/admin.' };
   }
 }
 
+// Soft delete a trainer/admin
 export async function deleteTrainer(id: string): Promise<ActionResult> {
   try {
     await prisma.trainer.update({
       where: { id },
-      data: { isActive: false }, // Soft delete
+      data: { isActive: false }, // Set isActive to false
     });
     revalidatePath('/admin');
     revalidatePath('/trainers');

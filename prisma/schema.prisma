@@ -9,68 +9,55 @@ generator client {
 }
 
 model User {
-  id          String    @id @default(cuid())
-  name        String
-  email       String    @unique
-  password    String
-  phoneNumber String?
-  role        String    @default("user") // Should always be 'user'
-  status      String    @default("pending") // 'pending' or 'active'
-  isActive    Boolean   @default(true) // For soft delete
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  bookings ClassBooking[]
-  invoices Invoice[]
-
-  @@index([email])
+  id            String         @id @default(cuid())
+  name          String
+  email         String         @unique
+  password      String
+  phoneNumber   String?
+  role          String         @default("user") // Should always be 'user'
+  status        String         // e.g., 'pending', 'active'
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  isActive      Boolean        @default(true) // For soft deletes
+  bookings      ClassBooking[]
+  invoices      Invoice[]
 }
 
 model Trainer {
-  id             String  @id @default(cuid())
+  id             String   @id @default(cuid())
   name           String
-  email          String  @unique
+  email          String   @unique
   password       String
-  role           String // 'admin' or 'trainer'
+  role           String   // 'admin' or 'trainer'
   specialization String
   experience     Int
   schedule       String
   phoneNumber    String?
   bio            String?
-  isActive       Boolean @default(true) // For soft delete
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  classes Class[]
-
-  @@index([email])
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  isActive       Boolean  @default(true) // For soft deletes
+  classes        Class[]
 }
 
 model Class {
-  id             String   @id @default(cuid())
+  id             String         @id @default(cuid())
   name           String
   description    String
   category       String
   date           DateTime
-  startTime      String // e.g., "09:00"
-  endTime        String // e.g., "10:00"
+  startTime      String // Consider DateTime if timezones are relevant
+  endTime        String // Consider DateTime
   capacity       Int
   availableSlots Int
-  isActive       Boolean  @default(true)
+  trainerId      String
+  trainer        Trainer        @relation(fields: [trainerId], references: [id])
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  isActive       Boolean        @default(true) // For soft deletes for classes
+  bookings       ClassBooking[]
 
-  trainerId String
-  trainer   Trainer  @relation(fields: [trainerId], references: [id])
-
-  bookings ClassBooking[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([name, date, startTime]) // Ensure a class with the same name, date, and time is unique
-  @@index([date])
-  @@index([category])
+  @@unique([name, date, startTime])
 }
 
 model ClassBooking {
@@ -78,42 +65,35 @@ model ClassBooking {
   classId     String
   userId      String
   bookingDate DateTime @default(now())
-  isActive    Boolean  @default(true)
-
-  class Class @relation(fields: [classId], references: [id])
-  user  User  @relation(fields: [userId], references: [id])
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  class       Class    @relation(fields: [classId], references: [id])
+  user        User     @relation(fields: [userId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  isActive    Boolean  @default(true) // If bookings can be soft-deleted
 
   @@unique([classId, userId])
-  @@map("booking") // Maps to the database table named "booking"
+  @@map("booking") // Maps to the 'booking' table in the database
 }
 
 model Invoice {
   id          String   @id @default(cuid())
   userId      String
+  user        User     @relation(fields: [userId], references: [id])
   amount      Float
   dueDate     DateTime
   paid        Boolean  @default(false)
   paymentDate DateTime?
-  isActive    Boolean  @default(true) // For soft delete
-
-  user User @relation(fields: [userId], references: [id])
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([userId])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  isActive    Boolean  @default(true) // For soft deletes
 }
 
 model CarouselImage {
   id        String  @id @default(cuid())
   url       String
-  position  Int     @unique // To maintain order
-  dataAiHint String? // For AI hint if using placeholder.co or similar
-  isActive  Boolean @default(true)
-
+  position  Int     @unique // Ensures unique positioning
+  dataAiHint String? // For AI-powered image suggestions
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  isActive  Boolean  @default(true) // For soft deletes
 }
