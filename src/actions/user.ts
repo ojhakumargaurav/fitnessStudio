@@ -26,11 +26,11 @@ export async function getUsers(): Promise<User[]> {
   }
 }
 
-// Omitting 'password' here allows us to redefine it as optional below.
-interface CreateUserInput extends Omit<PrismaUser, 'id' | 'role' | 'status' | 'invoices' | 'bookings' | 'createdAt' | 'updatedAt' | 'password' | 'isActive'> {
+// Omitting 'password' and 'phoneNumber' here allows us to redefine them as optional below.
+interface CreateUserInput extends Omit<PrismaUser, 'id' | 'role' | 'status' | 'invoices' | 'bookings' | 'createdAt' | 'updatedAt' | 'password' | 'isActive' | 'phoneNumber'> {
   password?: string; // Password can be undefined in the input, checked by function logic.
   status?: UserStatusString; // Allow setting status on creation (e.g., admin creates active user)
-  phoneNumber?: string | null; // Explicitly allow null
+  phoneNumber?: string | null; // Explicitly allow null or undefined
   name: string;
   email: string;
 }
@@ -70,7 +70,7 @@ export async function createUser(data: CreateUserInput): Promise<UserActionResul
         name,
         email,
         password: hashedPassword,
-        phoneNumber: phoneNumber || null,
+        phoneNumber: phoneNumber || null, // Ensure null is passed if phoneNumber is undefined or empty
         status: status, // Set status (e.g., 'active' if admin creates, 'pending' for signup)
         role: 'user', // Always 'user'
         isActive: true, // New users are active by default
