@@ -9,88 +9,96 @@ generator client {
 }
 
 model User {
-  id          String    @id @default(cuid())
+  id          String   @id @default(cuid())
   name        String
-  email       String    @unique
+  email       String   @unique
   password    String
   phoneNumber String?
-  role        String    @default("user")
-  status      String    @default("pending") // 'pending' or 'active'
-  isActive    Boolean   @default(true)     // For soft delete
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  bookings    ClassBooking[]
-  invoices    Invoice[]
+  role        String   @default("user") // 'user'
+  status      String   // 'pending' or 'active'
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  bookings ClassBooking[]
+  invoices Invoice[]
 }
 
 model Trainer {
-  id             String    @id @default(cuid())
+  id             String   @id @default(cuid())
   name           String
-  email          String    @unique
+  email          String   @unique
   password       String
-  role           String    // 'trainer' or 'admin'
+  role           String   // 'admin' or 'trainer'
   specialization String
   experience     Int
   schedule       String
   phoneNumber    String?
   bio            String?
-  isActive       Boolean   @default(true)     // For soft delete
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-  classes        Class[]
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  classes Class[]
 }
 
 model Class {
-  id             String    @id @default(cuid())
+  id             String   @id @default(cuid())
   name           String
   description    String
   category       String
   date           DateTime
-  startTime      String    // e.g., "09:00"
-  endTime        String    // e.g., "10:00"
+  startTime      String // e.g., "09:00"
+  endTime        String // e.g., "10:00"
   capacity       Int
   availableSlots Int
   trainerId      String
-  trainer        Trainer   @relation(fields: [trainerId], references: [id])
-  bookings       ClassBooking[]
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  @@unique([name, date, startTime])
+  trainer  Trainer        @relation(fields: [trainerId], references: [id])
+  bookings ClassBooking[]
+
+  @@unique([name, date, startTime]) // Ensure a class with the same name, date, and start time is unique
 }
 
 model ClassBooking {
   id          String   @id @default(cuid())
   classId     String
-  class       Class    @relation(fields: [classId], references: [id])
   userId      String
-  user        User     @relation(fields: [userId], references: [id])
   bookingDate DateTime @default(now())
+  isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  @@unique([classId, userId])
-  @@map("booking") // Maps to the table named "booking"
-}
+  class Class @relation(fields: [classId], references: [id])
+  user  User  @relation(fields: [userId], references: [id])
 
-model CarouselImage {
-  id        String  @id @default(cuid())
-  url       String
-  position  Int     @unique // Ensures unique positioning, can be updated
-  dataAiHint String? // Optional hint for AI image search
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  @@unique([classId, userId])
+  @@map("booking") // Maps this model to the "booking" table in the database
 }
 
 model Invoice {
   id          String    @id @default(cuid())
   userId      String
-  user        User      @relation(fields: [userId], references: [id])
   amount      Float
   dueDate     DateTime
   paid        Boolean   @default(false)
   paymentDate DateTime?
-  isActive    Boolean   @default(true)     // For soft delete
+  isActive    Boolean   @default(true)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model CarouselImage {
+  id         String  @id @default(cuid())
+  url        String
+  position   Int     @unique // To maintain order
+  dataAiHint String? // For AI-based image search hints
+  isActive   Boolean @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 }

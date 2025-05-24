@@ -17,7 +17,7 @@ async function main() {
 
   const admin = await prisma.trainer.upsert({
     where: { email: adminEmail },
-    update: {isActive: true},
+    update: {isActive: true}, // Ensure admin is active if already exists
     create: {
       name: 'Gaurav Ojha',
       email: adminEmail,
@@ -102,7 +102,7 @@ async function main() {
     const hashedUser1Password = await bcrypt.hash(user1Password, 10);
   const user1 = await prisma.user.upsert({
       where: { email: user1Email },
-      update: {isActive: true},
+      update: {isActive: true, status: USER_STATUS_ACTIVE},
       create: {
           name: 'Active User',
           email: user1Email,
@@ -120,7 +120,7 @@ async function main() {
     const hashedUser2Password = await bcrypt.hash(user2Password, 10);
   const user2 = await prisma.user.upsert({
       where: { email: user2Email },
-      update: {isActive: true},
+      update: {isActive: true, status: USER_STATUS_PENDING},
       create: {
           name: 'Pending User',
           email: user2Email,
@@ -139,7 +139,7 @@ async function main() {
 
   const class1 = await prisma.class.upsert({
     where: { name_date_startTime: { name: 'Morning Yoga', date: tomorrow, startTime: '09:00' } },
-    update: {},
+    update: {isActive: true},
     create: {
       name: 'Morning Yoga',
       description: 'Start your day with energizing yoga flow.',
@@ -150,13 +150,14 @@ async function main() {
       capacity: 15,
       availableSlots: 15,
       trainerId: trainer1.id,
+      isActive: true,
     },
   });
   console.log(`Created class1 with id: ${class1.id}`);
 
   const class2 = await prisma.class.upsert({
       where: { name_date_startTime: { name: 'Strength Fundamentals', date: tomorrow, startTime: '11:00' } },
-      update: {},
+      update: {isActive: true},
       create: {
         name: 'Strength Fundamentals',
         description: 'Learn the basics of weightlifting.',
@@ -167,13 +168,14 @@ async function main() {
         capacity: 10,
         availableSlots: 10,
         trainerId: trainer2.id,
+        isActive: true,
       },
     });
     console.log(`Created class2 with id: ${class2.id}`);
 
   const class3 = await prisma.class.upsert({
       where: { name_date_startTime: { name: 'HIIT Cardio Blast', date: tomorrow, startTime: '17:00' } },
-      update: {},
+      update: {isActive: true},
       create: {
         name: 'HIIT Cardio Blast',
         description: 'High-Intensity Interval Training for maximum calorie burn.',
@@ -184,13 +186,14 @@ async function main() {
         capacity: 20,
         availableSlots: 20,
         trainerId: trainer3.id,
+        isActive: true,
       },
     });
      console.log(`Created class3 with id: ${class3.id}`);
 
    const class4 = await prisma.class.upsert({
         where: { name_date_startTime: { name: 'Evening Flow Yoga', date: tomorrow, startTime: '18:00' } },
-        update: {},
+        update: {isActive: true},
         create: {
           name: 'Evening Flow Yoga',
           description: 'Wind down with a gentle yoga flow.',
@@ -201,13 +204,14 @@ async function main() {
           capacity: 15,
           availableSlots: 15,
           trainerId: trainer1.id,
+          isActive: true,
         },
       });
       console.log(`Created class4 with id: ${class4.id}`);
 
    const class5 = await prisma.class.upsert({
         where: { name_date_startTime: { name: 'Advanced Strength', date: tomorrow, startTime: '14:00' } },
-        update: {},
+        update: {isActive: true},
         create: {
           name: 'Advanced Strength',
           description: 'For experienced lifters.',
@@ -218,6 +222,7 @@ async function main() {
           capacity: 8,
           availableSlots: 8,
           trainerId: trainer2.id,
+          isActive: true,
         },
       });
         console.log(`Created class5 with id: ${class5.id}`);
@@ -225,10 +230,11 @@ async function main() {
   if (user1.status === USER_STATUS_ACTIVE && user1.isActive) {
       await prisma.classBooking.upsert({
           where: { classId_userId: { classId: class1.id, userId: user1.id } },
-          update: {},
+          update: {isActive: true},
           create: {
               classId: class1.id,
               userId: user1.id,
+              isActive: true,
           }
       });
       await prisma.class.update({
@@ -239,16 +245,16 @@ async function main() {
   }
 
     const imagesToSeed = [
-      { url: 'https://placehold.co/800x400.png', dataAiHint: 'gym workout', position: 1 },
-      { url: 'https://placehold.co/800x400.png', dataAiHint: 'yoga class', position: 2 },
-      { url: 'https://placehold.co/800x400.png', dataAiHint: 'weightlifting fitness', position: 3 },
+      { url: 'https://placehold.co/800x400.png', dataAiHint: 'gym workout', position: 1, isActive: true },
+      { url: 'https://placehold.co/800x400.png', dataAiHint: 'yoga class', position: 2, isActive: true },
+      { url: 'https://placehold.co/800x400.png', dataAiHint: 'weightlifting fitness', position: 3, isActive: true },
     ];
 
     for (const img of imagesToSeed) {
       const createdImage = await prisma.carouselImage.upsert({
         where: { position: img.position },
-        update: { url: img.url, dataAiHint: img.dataAiHint },
-        create: { url: img.url, position: img.position, dataAiHint: img.dataAiHint },
+        update: { url: img.url, dataAiHint: img.dataAiHint, isActive: img.isActive },
+        create: { url: img.url, position: img.position, dataAiHint: img.dataAiHint, isActive: img.isActive },
       });
       console.log(`Created/Updated carousel image at position ${createdImage.position}`);
     }
@@ -265,7 +271,7 @@ async function main() {
     console.log(`Re-sequenced carousel image positions.`);
 
   const invoice1 = await prisma.invoice.upsert({
-      where: { id: 'seed-invoice-1' },
+      where: { id: 'seed-invoice-1' }, // Using a predictable ID for easy reference if needed
       update: {isActive: true},
       create: {
           id: 'seed-invoice-1',
@@ -278,7 +284,7 @@ async function main() {
   });
   console.log(`Created/Updated invoice1 for user1`);
 
-  if (user2.isActive) {
+  if (user2.isActive) { // Check if user2 itself is active before creating invoices for them
     const invoice2 = await prisma.invoice.upsert({
         where: { id: 'seed-invoice-2' },
         update: {isActive: true},
@@ -292,6 +298,7 @@ async function main() {
         }
     });
     console.log(`Created/Updated invoice2 for user2 (overdue)`);
+  }
 
     const invoice3 = await prisma.invoice.upsert({
         where: { id: 'seed-invoice-3' },
@@ -307,7 +314,6 @@ async function main() {
         }
     });
     console.log(`Created/Updated invoice3 for user1 (paid)`);
-  }
 
 
   console.log(`Seeding finished.`);
