@@ -1,12 +1,15 @@
-
-datasource db {
-  provider = "sqlite"
-  url      = "file:./dev.db"
-}
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
   provider      = "prisma-client-js"
+  // Ensure a Linux-compatible binary target is included for Netlify
   binaryTargets = ["native", "debian-openssl-1.1.x"]
+}
+
+datasource db {
+  provider = "sqlite" // For local development. Consider changing for production on Netlify.
+  url      = env("DATABASE_URL")
 }
 
 model User {
@@ -15,13 +18,15 @@ model User {
   email       String    @unique
   password    String
   phoneNumber String?
-  role        String    @default("user") // "user", "trainer", "admin"
-  status      String    @default("pending") // "pending", "active"
-  isActive    Boolean   @default(true)
+  role        String    @default("user") // Should always be 'user' for this model
+  status      String    @default("pending") // 'pending' or 'active'
+  isActive    Boolean   @default(true) // For soft deletes
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   bookings    ClassBooking[]
   invoices    Invoice[]
+
+  @@index([email])
 }
 
 model Trainer {
@@ -29,36 +34,40 @@ model Trainer {
   name           String
   email          String   @unique
   password       String
-  role           String // "trainer" or "admin"
+  role           String // 'trainer' or 'admin'
   specialization String
   experience     Int
   schedule       String
   phoneNumber    String?
   bio            String?
-  isActive       Boolean  @default(true)
+  isActive       Boolean  @default(true) // For soft deletes
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   classes        Class[]
+
+  @@index([email])
 }
 
 model Class {
-  id             String    @id @default(cuid())
+  id             String   @id @default(cuid())
   name           String
   description    String?
   category       String
   date           DateTime
-  startTime      String // e.g., "09:00"
-  endTime        String // e.g., "10:00"
+  startTime      String // Consider DateTime if timezones are important
+  endTime        String // Consider DateTime
   capacity       Int
   availableSlots Int
-  isActive       Boolean   @default(true)
   trainerId      String
-  trainer        Trainer   @relation(fields: [trainerId], references: [id])
+  trainer        Trainer  @relation(fields: [trainerId], references: [id])
+  isActive       Boolean  @default(true) // For soft deletes
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
   bookings       ClassBooking[]
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
 
-  @@unique([name, date, startTime])
+  @@unique([name, date, startTime]) // Ensure class name, date, and start time is unique
+  @@index([trainerId])
+  @@index([date])
 }
 
 model ClassBooking {
@@ -66,14 +75,16 @@ model ClassBooking {
   classId     String
   userId      String
   bookingDate DateTime @default(now())
-  isActive    Boolean  @default(true)
+  isActive    Boolean  @default(true) // For soft deletes
   class       Class    @relation(fields: [classId], references: [id])
   user        User     @relation(fields: [userId], references: [id])
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   @@unique([classId, userId])
-  @@map("booking")
+  @@index([classId])
+  @@index([userId])
+  @@map("booking") // Maps to the 'booking' table name in the database
 }
 
 model Invoice {
@@ -84,17 +95,19 @@ model Invoice {
   dueDate     DateTime
   paid        Boolean  @default(false)
   paymentDate DateTime?
-  isActive    Boolean  @default(true)
+  isActive    Boolean  @default(true) // For soft deletes
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  @@index([userId])
 }
 
 model CarouselImage {
-  id          String   @id @default(cuid())
-  url         String
-  position    Int      @unique
-  dataAiHint  String?  // For AI to search for better images
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id         String   @id @default(cuid())
+  url        String
+  dataAiHint String?  // For AI-driven image suggestions or alt text
+  position   Int      @unique // To maintain order
+  isActive   Boolean  @default(true) // For soft deletes
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 }
