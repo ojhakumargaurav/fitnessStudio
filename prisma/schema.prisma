@@ -5,22 +5,23 @@ datasource db {
 }
 
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-1.1.x"]
 }
 
 model User {
-  id            String         @id @default(cuid())
-  name          String
-  email         String         @unique
-  password      String
-  phoneNumber   String?
-  role          String         @default("user") // Should always be 'user'
-  status        String         // e.g., 'pending', 'active'
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  isActive      Boolean        @default(true) // For soft deletes
-  bookings      ClassBooking[]
-  invoices      Invoice[]
+  id          String    @id @default(cuid())
+  name        String
+  email       String    @unique
+  password    String
+  phoneNumber String?
+  role        String    @default("user") // "user", "trainer", "admin"
+  status      String    @default("pending") // "pending", "active"
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  bookings    ClassBooking[]
+  invoices    Invoice[]
 }
 
 model Trainer {
@@ -28,34 +29,34 @@ model Trainer {
   name           String
   email          String   @unique
   password       String
-  role           String   // 'admin' or 'trainer'
+  role           String // "trainer" or "admin"
   specialization String
   experience     Int
   schedule       String
   phoneNumber    String?
   bio            String?
+  isActive       Boolean  @default(true)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
-  isActive       Boolean  @default(true) // For soft deletes
   classes        Class[]
 }
 
 model Class {
-  id             String         @id @default(cuid())
+  id             String    @id @default(cuid())
   name           String
-  description    String
+  description    String?
   category       String
   date           DateTime
-  startTime      String // Consider DateTime if timezones are relevant
-  endTime        String // Consider DateTime
+  startTime      String // e.g., "09:00"
+  endTime        String // e.g., "10:00"
   capacity       Int
   availableSlots Int
+  isActive       Boolean   @default(true)
   trainerId      String
-  trainer        Trainer        @relation(fields: [trainerId], references: [id])
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-  isActive       Boolean        @default(true) // For soft deletes for classes
+  trainer        Trainer   @relation(fields: [trainerId], references: [id])
   bookings       ClassBooking[]
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   @@unique([name, date, startTime])
 }
@@ -65,14 +66,14 @@ model ClassBooking {
   classId     String
   userId      String
   bookingDate DateTime @default(now())
+  isActive    Boolean  @default(true)
   class       Class    @relation(fields: [classId], references: [id])
   user        User     @relation(fields: [userId], references: [id])
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  isActive    Boolean  @default(true) // If bookings can be soft-deleted
 
   @@unique([classId, userId])
-  @@map("booking") // Maps to the 'booking' table in the database
+  @@map("booking")
 }
 
 model Invoice {
@@ -83,17 +84,17 @@ model Invoice {
   dueDate     DateTime
   paid        Boolean  @default(false)
   paymentDate DateTime?
+  isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  isActive    Boolean  @default(true) // For soft deletes
 }
 
 model CarouselImage {
-  id        String  @id @default(cuid())
-  url       String
-  position  Int     @unique // Ensures unique positioning
-  dataAiHint String? // For AI-powered image suggestions
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  isActive  Boolean  @default(true) // For soft deletes
+  id          String   @id @default(cuid())
+  url         String
+  position    Int      @unique
+  dataAiHint  String?  // For AI to search for better images
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
