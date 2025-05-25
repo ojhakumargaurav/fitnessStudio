@@ -135,7 +135,7 @@ const AdminPage = () => {
         };
         fetchData();
     }
-  }, [user, toast]);
+  }, [user]); // Removed toast from dependency array
 
 
    const monthlyEarningsData = useMemo(() => {
@@ -871,7 +871,7 @@ const AdminPage = () => {
             </div>
           </div>
           <DialogFooter>
-             <DialogClose asChild> <Button type="button" variant="outline">Cancel</Button> </DialogClose>
+            <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
             <Button onClick={handleSaveTrainer}>Save</Button>
           </DialogFooter>
         </DialogContent>
@@ -894,7 +894,7 @@ const AdminPage = () => {
             </div>
           </div>
           <DialogFooter>
-             <DialogClose asChild> <Button type="button" variant="outline">Cancel</Button> </DialogClose>
+            <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
             <Button onClick={handleGenerateInvoice}>Generate Invoice</Button>
           </DialogFooter>
         </DialogContent>
@@ -913,7 +913,7 @@ const AdminPage = () => {
             </div>
           </div>
           <DialogFooter>
-             <DialogClose asChild> <Button type="button" variant="outline">Cancel</Button> </DialogClose>
+            <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
             <Button onClick={handleMarkAsPaid}>Mark as Paid</Button>
           </DialogFooter>
         </DialogContent>
@@ -958,7 +958,7 @@ const AdminPage = () => {
               </TableBody>
             </Table>
           </CardContent>
-           <DialogFooter> <DialogClose asChild> <Button type="button" variant="outline">Close</Button> </DialogClose> </DialogFooter>
+           <DialogFooter><DialogClose asChild><Button type="button" variant="outline">Close</Button></DialogClose></DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -987,7 +987,7 @@ const AdminPage = () => {
             </div>
           </div>
           <DialogFooter>
-             <DialogClose asChild> <Button type="button" variant="outline">Cancel</Button> </DialogClose>
+            <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
             <Button onClick={handleSaveUser}>Add Client</Button>
           </DialogFooter>
         </DialogContent>
@@ -1006,7 +1006,7 @@ const AdminPage = () => {
             </div>
           </div>
           <DialogFooter>
-            <DialogClose asChild> <Button type="button" variant="outline">Cancel</Button> </DialogClose>
+            <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
             <Button onClick={handleAddImage}>Add Image</Button>
           </DialogFooter>
         </DialogContent>
