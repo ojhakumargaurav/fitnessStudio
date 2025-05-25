@@ -26,11 +26,12 @@ export async function getUsers(): Promise<User[]> {
   }
 }
 
-// Omitting 'password' and 'phoneNumber' here allows us to redefine them as optional below.
+// Omitting 'id', 'role', 'status', 'invoices', 'bookings', 'createdAt', 'updatedAt', 'password', 'isActive', 'phoneNumber'
+// from the base PrismaUser type to redefine them as needed for creation.
 interface CreateUserInput extends Omit<PrismaUser, 'id' | 'role' | 'status' | 'invoices' | 'bookings' | 'createdAt' | 'updatedAt' | 'password' | 'isActive' | 'phoneNumber'> {
-  password?: string; // Password can be undefined in the input, checked by function logic.
-  status?: UserStatusString; // Allow setting status on creation (e.g., admin creates active user)
-  phoneNumber?: string | null; // Explicitly allow null or undefined
+  password?: string;
+  status?: UserStatusString;
+  phoneNumber?: string | null; // Explicitly allow null or undefined in input
   name: string;
   email: string;
 }
@@ -54,13 +55,13 @@ export async function createUser(data: CreateUserInput): Promise<UserActionResul
 
 
   try {
-    const existingUser = await prisma.user.findUnique({ where: { email } });
-    if (existingUser) {
-      return { success: false, error: 'User with this email already exists.' };
+    const existingUserByEmail = await prisma.user.findUnique({ where: { email } });
+    if (existingUserByEmail) {
+      return { success: false, error: 'A client account with this email already exists.' };
     }
-    const existingTrainer = await prisma.trainer.findUnique({ where: { email } });
-    if (existingTrainer) {
-      return { success: false, error: 'An account with this email already exists (Trainer/Admin).' };
+    const existingTrainerByEmail = await prisma.trainer.findUnique({ where: { email } });
+    if (existingTrainerByEmail) {
+      return { success: false, error: 'A trainer/admin account with this email already exists.' };
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -70,8 +71,8 @@ export async function createUser(data: CreateUserInput): Promise<UserActionResul
         name,
         email,
         password: hashedPassword,
-        phoneNumber: phoneNumber || null, // Ensure null is passed if phoneNumber is undefined or empty
-        status: status, // Set status (e.g., 'active' if admin creates, 'pending' for signup)
+        phoneNumber: phoneNumber || null,
+        status: status,
         role: 'user', // Always 'user'
         isActive: true, // New users are active by default
       },
@@ -79,11 +80,16 @@ export async function createUser(data: CreateUserInput): Promise<UserActionResul
     revalidatePath('/admin');
     return { success: true, user: newUser };
   } catch (error: any) {
-    console.error("Error creating user:", error);
+    console.error("Error creating user in action:", error); // Detailed server-side log
+    let clientErrorMessage = 'Failed to create user due to a server error. Please check server logs for details.';
     if (error.code === 'P2002' && error.meta?.target?.includes('email')) {
-      return { success: false, error: 'User with this email already exists.' };
+      clientErrorMessage = 'This email address is already registered.';
+    } else if (error instanceof Error) {
+      // Provide a snippet of the error message, avoiding overly long or sensitive info on client
+      const prismaErrorSnippet = error.message.substring(0, 120);
+      clientErrorMessage = `Failed to create user. Server error: ${prismaErrorSnippet}${error.message.length > 120 ? '...' : ''}`;
     }
-    return { success: false, error: 'Failed to create user.' };
+    return { success: false, error: clientErrorMessage };
   }
 }
 
