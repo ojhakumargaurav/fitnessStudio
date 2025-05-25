@@ -2,9 +2,20 @@
 'use client';
 
 import {Button} from '@/components/ui/button';
-import {useRouter} from 'next/navigation';
+import {useRouter}from 'next/navigation';
 import {useEffect, useState} from 'react';
 import { getCarouselImages, CarouselImage } from '@/actions/carousel'; // Import server action and type
+
+// Helper function to check if a URL is for a video file
+const isVideoUrl = (url: string): boolean => {
+  if (!url) return false;
+  try {
+    const lowerUrl = url.toLowerCase();
+    return lowerUrl.endsWith('.mp4') || lowerUrl.endsWith('.webm') || lowerUrl.endsWith('.ogg');
+  } catch (e) {
+    return false;
+  }
+};
 
 export default function Home() {
   const router = useRouter();
@@ -17,24 +28,21 @@ export default function Home() {
         setIsLoading(true);
       try {
         const images = await getCarouselImages(); // Use server action
-        // Use default images only if fetched images are empty
         if (images && images.length > 0) {
-          setCarouselImages(images);
+          setCarouselImages(images.filter(img => img.isActive).sort((a, b) => a.position - b.position));
         } else {
-           // Set default images if fetch returns empty or fails gracefully
            setCarouselImages([
-              {id: 'default-1', url: 'https://picsum.photos/800/400', position: 1},
-              {id: 'default-2', url: 'https://picsum.photos/800/401', position: 2},
-              {id: 'default-3', url: 'https://picsum.photos/800/402', position: 3},
+              {id: 'default-1', url: 'https://placehold.co/800x400.png', dataAiHint: 'placeholder one', position: 1, isActive: true, createdAt: new Date(), updatedAt: new Date()},
+              {id: 'default-2', url: 'https://placehold.co/800x400.png', dataAiHint: 'placeholder two', position: 2, isActive: true, createdAt: new Date(), updatedAt: new Date()},
+              {id: 'default-3', url: 'https://placehold.co/800x400.png', dataAiHint: 'placeholder three', position: 3, isActive: true, createdAt: new Date(), updatedAt: new Date()},
            ]);
         }
       } catch (error) {
         console.error('Error fetching carousel images:', error);
-        // Set default images on error
          setCarouselImages([
-            {id: 'default-1', url: 'https://picsum.photos/800/400', position: 1},
-            {id: 'default-2', url: 'https://picsum.photos/800/401', position: 2},
-            {id: 'default-3', url: 'https://picsum.photos/800/402', position: 3},
+            {id: 'default-1', url: 'https://placehold.co/800x400.png', dataAiHint: 'placeholder one', position: 1, isActive: true, createdAt: new Date(), updatedAt: new Date()},
+            {id: 'default-2', url: 'https://placehold.co/800x400.png', dataAiHint: 'placeholder two', position: 2, isActive: true, createdAt: new Date(), updatedAt: new Date()},
+            {id: 'default-3', url: 'https://placehold.co/800x400.png', dataAiHint: 'placeholder three', position: 3, isActive: true, createdAt: new Date(), updatedAt: new Date()},
          ]);
       } finally {
         setIsLoading(false);
@@ -45,35 +53,48 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-     // Ensure carouselImages has length before setting interval
      if (carouselImages.length === 0) return;
 
-    // Auto-advance the carousel every 5 seconds
     const intervalId = setInterval(() => {
       setCurrentImageIndex((prevIndex) => (prevIndex + 1) % carouselImages.length);
     }, 5000);
 
-    // Clean up the interval when the component unmounts or images change
     return () => clearInterval(intervalId);
-  }, [carouselImages]); // Depend on carouselImages array
+  }, [carouselImages]);
+
+  const currentItem = carouselImages.length > 0 ? carouselImages[currentImageIndex] : null;
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-secondary">
-      {/* Carousel Section */}
       <div className="w-full max-w-4xl mb-8 rounded-lg overflow-hidden shadow-xl">
         {isLoading ? (
              <div className="w-full h-96 flex items-center justify-center bg-muted animate-pulse">
-                <p className="text-lg text-muted-foreground">Loading images...</p>
+                <p className="text-lg text-muted-foreground">Loading content...</p>
              </div>
-        ) : carouselImages.length > 0 ? (
-          <img
-            src={carouselImages[currentImageIndex].url}
-            alt={`Carousel Image ${currentImageIndex + 1}`}
-            className="w-full h-96 object-cover"
-          />
+        ) : currentItem ? (
+          currentItem.url && isVideoUrl(currentItem.url) ? (
+            <video
+              key={currentItem.id || currentItem.url} // Use item id or url as key
+              src={currentItem.url}
+              className="w-full h-96 object-cover"
+              autoPlay
+              muted
+              loop
+              playsInline // Important for iOS autoplay
+              preload="metadata"
+            />
+          ) : (
+            <img
+              key={currentItem.id || currentItem.url} // Use item id or url as key
+              src={currentItem.url || 'https://placehold.co/800x400.png'} // Fallback image
+              alt={currentItem.dataAiHint || `Carousel content ${currentImageIndex + 1}`}
+              data-ai-hint={currentItem.dataAiHint || ''}
+              className="w-full h-96 object-cover"
+            />
+          )
         ) : (
           <div className="w-full h-96 flex items-center justify-center bg-muted">
-            <p className="text-lg text-muted-foreground">No images available.</p>
+            <p className="text-lg text-muted-foreground">No content available for carousel.</p>
           </div>
         )}
       </div>
