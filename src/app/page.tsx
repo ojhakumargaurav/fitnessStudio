@@ -6,8 +6,8 @@ import {useRouter}from 'next/navigation';
 import {useEffect, useState} from 'react';
 import { getCarouselImages, CarouselImage } from '@/actions/carousel'; // Import server action and type
 
-// Helper function to check if a URL is for a video file
-const isVideoUrl = (url: string): boolean => {
+// Helper function to check if a URL is for a direct video file
+const isDirectVideoUrl = (url: string): boolean => {
   if (!url) return false;
   try {
     const lowerUrl = url.toLowerCase();
@@ -16,6 +16,32 @@ const isVideoUrl = (url: string): boolean => {
     return false;
   }
 };
+
+// Helper function to check if a URL is a YouTube URL
+const isYoutubeUrl = (url: string): boolean => {
+  if (!url) return false;
+  const youtubeRegex = /^(https?:)?(\/\/)?(www\.)?(m\.)?(youtube\.com|youtu\.be)\/.+$/;
+  return youtubeRegex.test(url);
+};
+
+// Helper function to get YouTube embed URL
+const getYoutubeEmbedUrl = (url: string): string | null => {
+  if (!isYoutubeUrl(url)) return null;
+  let videoId = null;
+  try {
+    const urlObj = new URL(url);
+    if (urlObj.hostname === 'youtu.be') {
+      videoId = urlObj.pathname.slice(1);
+    } else if (urlObj.hostname.includes('youtube.com')) {
+      videoId = urlObj.searchParams.get('v');
+    }
+    return videoId ? `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&loop=1&playlist=${videoId}` : null;
+  } catch (e) {
+    console.error("Error parsing YouTube URL:", e);
+    return null;
+  }
+};
+
 
 export default function Home() {
   const router = useRouter();
@@ -33,7 +59,7 @@ export default function Home() {
         } else {
            setCarouselImages([
               {id: 'default-1', url: 'https://placehold.co/800x400.png', dataAiHint: 'placeholder one', position: 1, isActive: true, createdAt: new Date(), updatedAt: new Date()},
-              {id: 'default-2', url: 'https://placehold.co/800x400.png', dataAiHint: 'placeholder two', position: 2, isActive: true, createdAt: new Date(), updatedAt: new Date()},
+              {id: 'default-2', url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', dataAiHint: 'youtube video example', position: 2, isActive: true, createdAt: new Date(), updatedAt: new Date()},
               {id: 'default-3', url: 'https://placehold.co/800x400.png', dataAiHint: 'placeholder three', position: 3, isActive: true, createdAt: new Date(), updatedAt: new Date()},
            ]);
         }
@@ -41,7 +67,7 @@ export default function Home() {
         console.error('Error fetching carousel images:', error);
          setCarouselImages([
             {id: 'default-1', url: 'https://placehold.co/800x400.png', dataAiHint: 'placeholder one', position: 1, isActive: true, createdAt: new Date(), updatedAt: new Date()},
-            {id: 'default-2', url: 'https://placehold.co/800x400.png', dataAiHint: 'placeholder two', position: 2, isActive: true, createdAt: new Date(), updatedAt: new Date()},
+            {id: 'default-2', url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', dataAiHint: 'youtube video example', position: 2, isActive: true, createdAt: new Date(), updatedAt: new Date()},
             {id: 'default-3', url: 'https://placehold.co/800x400.png', dataAiHint: 'placeholder three', position: 3, isActive: true, createdAt: new Date(), updatedAt: new Date()},
          ]);
       } finally {
@@ -57,26 +83,36 @@ export default function Home() {
 
     const intervalId = setInterval(() => {
       setCurrentImageIndex((prevIndex) => (prevIndex + 1) % carouselImages.length);
-    }, 5000);
+    }, 7000); // Increased interval for videos
 
     return () => clearInterval(intervalId);
   }, [carouselImages]);
 
   const currentItem = carouselImages.length > 0 ? carouselImages[currentImageIndex] : null;
+  const youtubeEmbedUrl = currentItem && currentItem.url ? getYoutubeEmbedUrl(currentItem.url) : null;
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-secondary">
-      <div className="w-full max-w-4xl mb-8 rounded-lg overflow-hidden shadow-xl">
+      <div className="w-full max-w-4xl mb-8 rounded-lg overflow-hidden shadow-xl aspect-video"> {/* Use aspect-video for consistent iframe/video size */}
         {isLoading ? (
-             <div className="w-full h-96 flex items-center justify-center bg-muted animate-pulse">
+             <div className="w-full h-full flex items-center justify-center bg-muted animate-pulse">
                 <p className="text-lg text-muted-foreground">Loading content...</p>
              </div>
         ) : currentItem ? (
-          currentItem.url && isVideoUrl(currentItem.url) ? (
+          youtubeEmbedUrl ? (
+            <iframe
+              key={currentItem.id || currentItem.url}
+              src={youtubeEmbedUrl}
+              title={currentItem.dataAiHint || `Carousel content ${currentImageIndex + 1}`}
+              className="w-full h-full"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowFullScreen
+            ></iframe>
+          ) : currentItem.url && isDirectVideoUrl(currentItem.url) ? (
             <video
-              key={currentItem.id || currentItem.url} // Use item id or url as key
+              key={currentItem.id || currentItem.url}
               src={currentItem.url}
-              className="w-full h-96 object-cover"
+              className="w-full h-full object-cover"
               autoPlay
               muted
               loop
@@ -85,15 +121,15 @@ export default function Home() {
             />
           ) : (
             <img
-              key={currentItem.id || currentItem.url} // Use item id or url as key
-              src={currentItem.url || 'https://placehold.co/800x400.png'} // Fallback image
+              key={currentItem.id || currentItem.url}
+              src={currentItem.url || 'https://placehold.co/800x400.png'}
               alt={currentItem.dataAiHint || `Carousel content ${currentImageIndex + 1}`}
               data-ai-hint={currentItem.dataAiHint || ''}
-              className="w-full h-96 object-cover"
+              className="w-full h-full object-cover"
             />
           )
         ) : (
-          <div className="w-full h-96 flex items-center justify-center bg-muted">
+          <div className="w-full h-full flex items-center justify-center bg-muted">
             <p className="text-lg text-muted-foreground">No content available for carousel.</p>
           </div>
         )}

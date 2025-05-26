@@ -1,0 +1,16 @@
+
+# netlify.toml
+
+[build]
+  command = "npm run build" # This runs "prisma generate && next build"
+  publish = ".next"         # The standard Next.js output directory
+
+[[plugins]]
+  # Essential for Next.js sites on Netlify.
+  # This plugin handles Server Components, API routes, Middleware, Image Optimization, etc.
+  package = "@netlify/plugin-nextjs"
+
+# Optional: If you have environment variables specific to functions,
+# you can define them here, but it's usually better to set them in Netlify UI.
+# [functions]
+#   included_files = ["prisma/schema.prisma"] # If your functions need direct schema access (rare for just Prisma Client)

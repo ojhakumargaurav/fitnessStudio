@@ -20,6 +20,9 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Set to true to disable login and default to admin for testing
+const IS_LOGIN_DISABLED_FOR_TESTING = false; 
+
 // Default user for testing when login is "disabled"
 const defaultTestAdminUser: AuthenticatedUser = {
   id: 'test-admin-001',
@@ -27,11 +30,10 @@ const defaultTestAdminUser: AuthenticatedUser = {
   status: 'active',
 };
 
-const IS_LOGIN_DISABLED_FOR_TESTING = true; // Set to true to disable login
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<AuthenticatedUser | null>(IS_LOGIN_DISABLED_FOR_TESTING ? defaultTestAdminUser : null);
-  const [isLoading, setIsLoading] = useState(IS_LOGIN_DISABLED_FOR_TESTING ? false : true); // No loading if login is disabled
+  const [user, setUser] = useState<AuthenticatedUser | null>(null);
+  const [isLoading, setIsLoading] = useState(true); 
 
   useEffect(() => {
     if (IS_LOGIN_DISABLED_FOR_TESTING) {
@@ -41,6 +43,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
 
     // Original logic to check local storage
+    setIsLoading(true); // Ensure loading is true before checking storage
     const storedUser = localStorage.getItem('user');
     if (storedUser) {
       try {
@@ -61,9 +64,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const login = async (username: string, password: string): Promise<boolean> => {
     if (IS_LOGIN_DISABLED_FOR_TESTING) {
-      setUser(defaultTestAdminUser); // Ensure test user is set
+      setUser(defaultTestAdminUser); 
       setIsLoading(false);
-      return true; // Always successful for testing
+      return true; 
     }
 
     setIsLoading(true);
@@ -80,7 +83,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         return false;
       }
     } catch (error) {
-      console.error('Login error:', error);
+      console.error('Login error caught in useAuth:', error);
+      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred during login process.';
+      console.error('Login error message:', errorMessage);
       setIsLoading(false);
       return false;
     }
@@ -88,16 +93,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const logout = () => {
     if (IS_LOGIN_DISABLED_FOR_TESTING) {
-      // To re-enable "login" for testing, set user to null.
-      // Or, to keep it always "logged in" as admin, do nothing or reset to defaultTestAdminUser.
-      // For now, let's allow logout to clear the user even in test mode.
       setUser(null);
-      // localStorage.removeItem('user'); // Not strictly necessary if we're bypassing localStorage for login
       console.log("Logout called in test mode. User set to null.");
       return;
     }
     setUser(null);
     localStorage.removeItem('user');
+    setIsLoading(false); // User is explicitly logged out, no longer loading auth state
   };
 
   const contextValue = { user, isLoading, login, logout };
