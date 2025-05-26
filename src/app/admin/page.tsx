@@ -27,7 +27,7 @@ import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Dia
 import {Label}from "@/components/ui/label";
 import {Textarea}from "@/components/ui/textarea";
 import type {Trainer}from "@/actions/trainer";
-import { AdminRoleString, AdminRoles } from '@/types/roles'; // Import new role types
+import { AdminRoleString, AdminRoles } from '@/types/roles';
 import type {User}from "@/actions/user";
 import { UserStatus, type UserStatusString } from "@/types/user";
 import {Plus, Edit, Trash2, FileText, History, UserPlus, ImagePlus, CheckSquare, TrendingUp, EyeOff, ShieldAlert } from "lucide-react";
@@ -36,7 +36,7 @@ import { Badge } from "@/components/ui/badge";
 import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue}from "@/components/ui/select";
 import {getUsers, createUser, updateUserStatus, deleteUser as softDeleteUserAction}from '@/actions/user';
-import { getManageableAccounts, createTrainer, updateTrainer, deleteTrainer as softDeleteTrainerAction, getTrainersForPublicListing } from '@/actions/trainer'; // Updated import
+import { getManageableAccounts, createTrainer, updateTrainer, deleteTrainer as softDeleteTrainerAction, getTrainersForPublicListing } from '@/actions/trainer';
 import { getInvoices, createInvoice, markInvoiceAsPaid, deleteInvoice as softDeleteInvoiceAction, Invoice } from '@/actions/invoice';
 import { getCarouselImages, addCarouselImage, deleteCarouselImage, updateCarouselImageOrder, CarouselImage } from '@/actions/carousel';
 import { useToast } from '@/hooks/use-toast';
@@ -62,7 +62,7 @@ const AdminPage = () => {
   const router = useRouter();
   const { toast } = useToast();
   const [users, setUsers] = useState<User[]>([]);
-  const [trainersAndAdmins, setTrainersAndAdmins] = useState<Trainer[]>([]); // Renamed for clarity
+  const [trainersAndAdmins, setTrainersAndAdmins] = useState<Trainer[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [carouselImages, setCarouselImages] = useState<CarouselImage[]>([]);
 
@@ -75,7 +75,7 @@ const AdminPage = () => {
   const [trainerEmail, setTrainerEmail] = useState('');
   const [trainerPassword, setTrainerPassword] = useState('');
   const [trainerPhoneNumber, setTrainerPhoneNumber] = useState('');
-  const [trainerRole, setTrainerRole] = useState<AdminRoleString>(AdminRoles.TRAINER); // Use AdminRoleString
+  const [trainerRole, setTrainerRole] = useState<AdminRoleString>(AdminRoles.TRAINER);
   const [trainerBio, setTrainerBio] = useState('');
 
   const [openInvoiceDialog, setOpenInvoiceDialog] = useState(false);
@@ -105,7 +105,7 @@ const AdminPage = () => {
 
 
   useEffect(() => {
-    if (!isAuthLoading && (!user || (user.role !== AdminRoles.ADMIN && user.role !== AdminRoles.IT_ADMIN))) { // Check for both admin roles
+    if (!isAuthLoading && (!user || (user.role !== AdminRoles.ADMIN && user.role !== AdminRoles.IT_ADMIN))) {
       router.push('/login');
     }
   }, [user, isAuthLoading, router]);
@@ -121,12 +121,12 @@ const AdminPage = () => {
     try {
         const [userList, manageableAccountsList, invoiceList, imageList] = await Promise.all([
             getUsers(),
-            getManageableAccounts(loggedInUserRole), // Use new action
+            getManageableAccounts(loggedInUserRole),
             getInvoices(),
             getCarouselImages()
         ]);
         setUsers(userList.filter(u => u.isActive));
-        setTrainersAndAdmins(manageableAccountsList); // Already filtered by isActive in action
+        setTrainersAndAdmins(manageableAccountsList.filter(t => t.isActive));
         setInvoices(invoiceList.filter(i => i.isActive));
         setCarouselImages(imageList.filter(img => img.isActive).sort((a, b) => a.position - b.position));
     } catch (error) {
@@ -165,6 +165,39 @@ const AdminPage = () => {
       total: item.total,
     }));
   }, [invoices]);
+
+  const handleOnDragEnd = useCallback(async (result: DropResult) => {
+    if (!result.destination) return;
+
+    const items = Array.from(carouselImages);
+    const [reorderedItem] = items.splice(result.source.index, 1);
+    items.splice(result.destination.index, 0, reorderedItem);
+
+    const newOrder = items.map((item, index) => ({
+        id: item.id,
+        position: index + 1
+    }));
+
+    const originalImages = [...carouselImages];
+    setCarouselImages(items.map((item, index)=> ({...item, position: index + 1})));
+
+    try {
+        const updateResult = await updateCarouselImageOrder(newOrder);
+        if (!updateResult.success) {
+            setCarouselImages(originalImages);
+            throw new Error(updateResult.error || "Failed to update image order.");
+        }
+         toast({ title: "Success", description: "Image order updated." });
+         // Re-fetch to ensure server state is perfectly aligned after optimistic update
+         const updatedImageList = await getCarouselImages();
+         setCarouselImages(updatedImageList.filter(img => img.isActive).sort((a,b) => a.position - b.position));
+
+    } catch (error: any) {
+        console.error("Error updating carousel order:", error);
+        toast({ title: "Error", description: error.message || "Could not update image order.", variant: "destructive" });
+        setCarouselImages(originalImages);
+    }
+  }, [carouselImages, toast]);
 
 
   if (isAuthLoading || isLoadingData || !user) {
@@ -207,14 +240,14 @@ const AdminPage = () => {
         return;
     }
 
-    const trainerData: Parameters<typeof createTrainer>[0] = { // Use Parameters type for safety
+    const trainerData = {
       name: trainerName,
       specialization: trainerSpecialization,
       experience: experienceNum,
       schedule: trainerSchedule,
       email: trainerEmail,
       phoneNumber: trainerPhoneNumber || undefined,
-      role: trainerRole, // trainerRole state is AdminRoleString
+      role: trainerRole,
       bio: trainerBio || undefined,
     };
 
@@ -366,7 +399,7 @@ const AdminPage = () => {
         name: userName,
         email: userEmail,
         password: userPassword,
-        phoneNumber: userPhoneNumber || undefined,
+        phoneNumber: userPhoneNumber || null,
         status: UserStatus.ACTIVE as UserStatusString
       });
 
@@ -481,39 +514,6 @@ const AdminPage = () => {
           toast({ title: "Error", description: error.message || "Could not delete image.", variant: "destructive" });
      }
   };
-
-  const handleOnDragEnd = useCallback(async (result: DropResult) => {
-    if (!result.destination) return;
-
-    const items = Array.from(carouselImages);
-    const [reorderedItem] = items.splice(result.source.index, 1);
-    items.splice(result.destination.index, 0, reorderedItem);
-
-    const newOrder = items.map((item, index) => ({
-        id: item.id,
-        position: index + 1
-    }));
-
-    const originalImages = [...carouselImages]; // Keep a copy for potential revert
-    setCarouselImages(items.map((item, index)=> ({...item, position: index+1}))); // Optimistic UI update
-
-    try {
-        const updateResult = await updateCarouselImageOrder(newOrder);
-        if (!updateResult.success) {
-            setCarouselImages(originalImages); // Revert UI on failure
-            throw new Error(updateResult.error || "Failed to update image order.");
-        }
-         toast({ title: "Success", description: "Image order updated." });
-         // Optionally re-fetch to confirm server state, though optimistic update should be fine
-         // const updatedImageList = await getCarouselImages();
-         // setCarouselImages(updatedImageList.filter(img => img.isActive).sort((a,b) => a.position - b.position));
-    } catch (error: any) {
-        console.error("Error updating carousel order:", error);
-        toast({ title: "Error", description: error.message || "Could not update image order.", variant: "destructive" });
-        setCarouselImages(originalImages); // Revert UI
-    }
-}, [carouselImages, toast]);
-
 
   return (
     <div className="container mx-auto py-10">
@@ -1026,3 +1026,5 @@ const AdminPage = () => {
 };
 
 export default AdminPage;
+
+    
