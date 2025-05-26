@@ -2,14 +2,36 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { addDays, format } from 'date-fns';
+import { AdminRoles } from '@/types/roles'; // Import AdminRoles
+import { UserStatus } from '@/types/user';
 
 const prisma = new PrismaClient();
 
-const USER_STATUS_ACTIVE = 'active';
-const USER_STATUS_PENDING = 'pending';
-
 async function main() {
   console.log(`Start seeding ...`);
+
+  const itAdminEmail = 'itadmin@fitnesshub.com';
+  const itAdminPassword = 'itadminpassword';
+  const hashedItAdminPassword = await bcrypt.hash(itAdminPassword, 10);
+
+  const itAdmin = await prisma.trainer.upsert({
+    where: { email: itAdminEmail },
+    update: { isActive: true, role: AdminRoles.IT_ADMIN },
+    create: {
+      name: 'IT Super Admin',
+      email: itAdminEmail,
+      password: hashedItAdminPassword,
+      role: AdminRoles.IT_ADMIN,
+      specialization: 'System Infrastructure',
+      experience: 10,
+      schedule: 'On-call',
+      phoneNumber: '000-000-0000',
+      bio: 'Manages the IT systems for Fitness Hub.',
+      isActive: true,
+    },
+  });
+  console.log(`Created/Updated IT Admin with id: ${itAdmin.id}`);
+
 
   const adminEmail = 'kumarojhagaurav@gmail.com';
   const adminPassword = 'gymwarriors';
@@ -17,12 +39,12 @@ async function main() {
 
   const admin = await prisma.trainer.upsert({
     where: { email: adminEmail },
-    update: {isActive: true}, // Ensure admin is active if already exists
+    update: {isActive: true, role: AdminRoles.ADMIN}, // Ensure admin is active if already exists
     create: {
       name: 'Gaurav Ojha',
       email: adminEmail,
       password: hashedAdminPassword,
-      role: 'admin',
+      role: AdminRoles.ADMIN,
       specialization: 'Site Administration',
       experience: 5,
       schedule: 'Always available',
@@ -38,12 +60,12 @@ async function main() {
   const hashedTrainer1Password = await bcrypt.hash(trainer1Password, 10);
   const trainer1 = await prisma.trainer.upsert({
     where: { email: trainer1Email },
-    update: {isActive: true},
+    update: {isActive: true, role: AdminRoles.TRAINER},
     create: {
       name: 'Alice Johnson',
       email: trainer1Email,
       password: hashedTrainer1Password,
-      role: 'trainer',
+      role: AdminRoles.TRAINER,
       specialization: 'Yoga & Flexibility',
       experience: 5,
       schedule: 'Mon, Wed, Fri 8am-12pm',
@@ -59,12 +81,12 @@ async function main() {
     const hashedTrainer2Password = await bcrypt.hash(trainer2Password, 10);
   const trainer2 = await prisma.trainer.upsert({
     where: { email: trainer2Email },
-    update: {isActive: true},
+    update: {isActive: true, role: AdminRoles.TRAINER},
     create: {
       name: 'Bob Smith',
       email: trainer2Email,
         password: hashedTrainer2Password,
-      role: 'trainer',
+      role: AdminRoles.TRAINER,
       specialization: 'Strength Training',
       experience: 8,
       schedule: 'Tue, Thu 1pm-5pm, Sat 9am-1pm',
@@ -81,12 +103,12 @@ async function main() {
     const hashedTrainer3Password = await bcrypt.hash(trainer3Password, 10);
   const trainer3 = await prisma.trainer.upsert({
     where: { email: trainer3Email },
-    update: {isActive: true},
+    update: {isActive: true, role: AdminRoles.TRAINER},
     create: {
       name: 'Charlie Brown',
       email: trainer3Email,
         password: hashedTrainer3Password,
-      role: 'trainer',
+      role: AdminRoles.TRAINER,
       specialization: 'Cardio & Endurance',
       experience: 3,
       schedule: 'Mon-Fri 5pm-9pm',
@@ -102,13 +124,13 @@ async function main() {
     const hashedUser1Password = await bcrypt.hash(user1Password, 10);
   const user1 = await prisma.user.upsert({
       where: { email: user1Email },
-      update: {isActive: true, status: USER_STATUS_ACTIVE},
+      update: {isActive: true, status: UserStatus.ACTIVE},
       create: {
           name: 'Active User',
           email: user1Email,
           password: hashedUser1Password,
           role: 'user',
-          status: USER_STATUS_ACTIVE,
+          status: UserStatus.ACTIVE,
           phoneNumber: '111-222-3333',
           isActive: true,
       }
@@ -120,13 +142,13 @@ async function main() {
     const hashedUser2Password = await bcrypt.hash(user2Password, 10);
   const user2 = await prisma.user.upsert({
       where: { email: user2Email },
-      update: {isActive: true, status: USER_STATUS_PENDING},
+      update: {isActive: true, status: UserStatus.PENDING},
       create: {
           name: 'Pending User',
           email: user2Email,
           password: hashedUser2Password,
           role: 'user',
-          status: USER_STATUS_PENDING,
+          status: UserStatus.PENDING,
           phoneNumber: '444-555-6666',
           isActive: true,
       }
@@ -227,7 +249,7 @@ async function main() {
       });
         console.log(`Created class5 with id: ${class5.id}`);
 
-  if (user1.status === USER_STATUS_ACTIVE && user1.isActive) {
+  if (user1.status === UserStatus.ACTIVE && user1.isActive) {
       await prisma.classBooking.upsert({
           where: { classId_userId: { classId: class1.id, userId: user1.id } },
           update: {isActive: true},
@@ -246,20 +268,22 @@ async function main() {
 
     const imagesToSeed = [
       { url: 'https://placehold.co/800x400.png', dataAiHint: 'gym workout', position: 1, isActive: true },
-      { url: 'https://placehold.co/800x400.png', dataAiHint: 'yoga class', position: 2, isActive: true },
-      { url: 'https://placehold.co/800x400.png', dataAiHint: 'weightlifting fitness', position: 3, isActive: true },
+      { url: 'https://www.youtube.com/watch?v=ysz5S6PUM-U', dataAiHint: 'fitness motivation', position: 2, isActive: true }, // Example YouTube Video
+      { url: 'https://placehold.co/800x400.png', dataAiHint: 'yoga class', position: 3, isActive: true },
+      { url: 'https://placehold.co/800x400.png', dataAiHint: 'weightlifting fitness', position: 4, isActive: true },
     ];
 
     for (const img of imagesToSeed) {
       const createdImage = await prisma.carouselImage.upsert({
-        where: { position: img.position },
+        where: { position: img.position }, // Assuming position is unique for upsert logic
         update: { url: img.url, dataAiHint: img.dataAiHint, isActive: img.isActive },
         create: { url: img.url, position: img.position, dataAiHint: img.dataAiHint, isActive: img.isActive },
       });
       console.log(`Created/Updated carousel image at position ${createdImage.position}`);
     }
 
-    const allImages = await prisma.carouselImage.findMany({ orderBy: { position: 'asc' } });
+    // Re-sequence positions to ensure they are contiguous from 1
+    const allImages = await prisma.carouselImage.findMany({ where: {isActive: true}, orderBy: { position: 'asc' } });
     await prisma.$transaction(
         allImages.map((img, index) =>
             prisma.carouselImage.update({
@@ -268,7 +292,7 @@ async function main() {
             })
         )
     );
-    console.log(`Re-sequenced carousel image positions.`);
+    console.log(`Re-sequenced active carousel image positions.`);
 
   const invoice1 = await prisma.invoice.upsert({
       where: { id: 'seed-invoice-1' }, // Using a predictable ID for easy reference if needed

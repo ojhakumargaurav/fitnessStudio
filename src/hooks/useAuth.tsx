@@ -2,31 +2,31 @@
 'use client';
 
 import { useState, createContext, useContext, ReactNode, useEffect } from 'react';
-import { login as serverLogin } from '@/actions/auth'; // Import the server action
+import { login as serverLogin } from '@/actions/auth';
+import { AdminRoles, type AdminRoleString } from '@/types/roles'; // Import AdminRoles
 
-// Define the user type more explicitly, including status
 interface AuthenticatedUser {
   id: string;
-  role: string;
-  status?: string; // Add status, optional for trainers/admins
+  role: string; // Keep as string, can be 'user', 'trainer', 'admin', 'it_admin'
+  status?: string;
 }
 
 interface AuthContextType {
   user: AuthenticatedUser | null;
-  isLoading: boolean; // Add loading state
+  isLoading: boolean;
   login: (username: string, password: string) => Promise<boolean>;
   logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Set to true to disable login and default to admin for testing
+// Set to true to disable login and default to a specific role for testing
 const IS_LOGIN_DISABLED_FOR_TESTING = false; 
 
 // Default user for testing when login is "disabled"
-const defaultTestAdminUser: AuthenticatedUser = {
-  id: 'test-admin-001',
-  role: 'admin',
+const defaultTestUser: AuthenticatedUser = { // Changed from defaultTestAdminUser for flexibility
+  id: 'test-it-admin-001',
+  role: AdminRoles.IT_ADMIN, // Test as IT_ADMIN
   status: 'active',
 };
 
@@ -37,13 +37,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     if (IS_LOGIN_DISABLED_FOR_TESTING) {
-      setUser(defaultTestAdminUser);
+      setUser(defaultTestUser); // Use the more generic defaultTestUser
       setIsLoading(false);
       return;
     }
 
-    // Original logic to check local storage
-    setIsLoading(true); // Ensure loading is true before checking storage
+    setIsLoading(true);
     const storedUser = localStorage.getItem('user');
     if (storedUser) {
       try {
@@ -64,7 +63,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const login = async (username: string, password: string): Promise<boolean> => {
     if (IS_LOGIN_DISABLED_FOR_TESTING) {
-      setUser(defaultTestAdminUser); 
+      setUser(defaultTestUser); 
       setIsLoading(false);
       return true; 
     }
@@ -73,7 +72,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       const result = await serverLogin(username, password);
       if (result.success && result.user) {
-        setUser(result.user);
+        setUser(result.user as AuthenticatedUser); // Ensure type consistency
         localStorage.setItem('user', JSON.stringify(result.user));
         setIsLoading(false);
         return true;
@@ -94,12 +93,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const logout = () => {
     if (IS_LOGIN_DISABLED_FOR_TESTING) {
       setUser(null);
-      console.log("Logout called in test mode. User set to null.");
+      // console.log("Logout called in test mode. User set to null."); // Optional log
       return;
     }
     setUser(null);
     localStorage.removeItem('user');
-    setIsLoading(false); // User is explicitly logged out, no longer loading auth state
+    setIsLoading(false);
   };
 
   const contextValue = { user, isLoading, login, logout };

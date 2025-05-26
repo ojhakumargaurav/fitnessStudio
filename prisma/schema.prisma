@@ -1,64 +1,64 @@
 
+datasource db {
+  provider = "postgresql" // Changed from sqlite
+  url      = env("DATABASE_URL")
+}
+
 generator client {
   provider      = "prisma-client-js"
   binaryTargets = ["native", "debian-openssl-1.1.x"]
 }
 
-datasource db {
-  provider = "postgresql" // Changed from "sqlite"
-  url      = env("DATABASE_URL")
-}
-
 model User {
-  id            String         @id @default(cuid())
+  id            String    @id @default(cuid())
   name          String
-  email         String         @unique
+  email         String    @unique
   password      String
+  role          String    @default("user") // Should always be "user"
   phoneNumber   String?
-  role          String         @default("user") // 'user'
-  status        String         @default("pending") // 'pending', 'active'
-  isActive      Boolean        @default(true)
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  status        String    @default("pending") // "pending", "active"
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
   bookings      ClassBooking[]
   invoices      Invoice[]
 }
 
 model Trainer {
-  id             String        @id @default(cuid())
-  name           String
-  email          String        @unique
-  password       String
-  role           String // 'admin', 'trainer'
-  specialization String
-  experience     Int
-  schedule       String
-  phoneNumber    String?
-  bio            String?
-  isActive       Boolean       @default(true)
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
-  classes        Class[]
+  id              String    @id @default(cuid())
+  name            String
+  email           String    @unique
+  password        String
+  role            String    // "trainer", "admin", "it_admin"
+  specialization  String
+  experience      Int
+  schedule        String
+  phoneNumber     String?
+  bio             String?
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  classes         Class[]
 }
 
 model Class {
-  id             String         @id @default(cuid())
-  name           String
-  description    String
-  category       String // E.g., Yoga, Strength Training, Cardio
-  date           DateTime
-  startTime      String // Format HH:MM
-  endTime        String // Format HH:MM
-  capacity       Int
-  availableSlots Int
-  trainerId      String
-  isActive       Boolean        @default(true)
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-  trainer        Trainer        @relation(fields: [trainerId], references: [id])
-  bookings       ClassBooking[]
+  id              String    @id @default(cuid())
+  name            String
+  description     String
+  category        String
+  date            DateTime
+  startTime       String // Format HH:mm
+  endTime         String // Format HH:mm
+  capacity        Int
+  availableSlots  Int
+  trainerId       String
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  trainer         Trainer   @relation(fields: [trainerId], references: [id])
+  bookings        ClassBooking[]
 
-  @@unique([name, date, startTime]) // Ensure a class with the same name, date, and time is unique
+  @@unique([name, date, startTime])
 }
 
 model ClassBooking {
@@ -77,22 +77,22 @@ model ClassBooking {
 }
 
 model Invoice {
-  id          String    @id @default(cuid())
+  id          String   @id @default(cuid())
   userId      String
   amount      Float
   dueDate     DateTime
-  paid        Boolean   @default(false)
+  paid        Boolean  @default(false)
   paymentDate DateTime?
-  isActive    Boolean   @default(true)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  user        User      @relation(fields: [userId], references: [id])
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id])
 }
 
 model CarouselImage {
   id          String   @id @default(cuid())
   url         String
-  dataAiHint  String?  // For Unsplash search keywords
+  dataAiHint  String?  // Optional hint for AI image search
   position    Int      @unique // To maintain order
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
