@@ -17,14 +17,17 @@ interface ActionResult<T = null> {
 }
 
 /**
- * Fetches trainers for public listing (only 'trainer' role).
+ * Fetches trainers and admins for public listing.
+ * IT Admins are excluded from this list.
  */
 export async function getTrainersForPublicListing(): Promise<Trainer[]> {
   try {
     const trainers = await prisma.trainer.findMany({
-        where: { 
+        where: {
             isActive: true,
-            role: AdminRoles.TRAINER 
+            role: {
+                in: [AdminRoles.TRAINER, AdminRoles.ADMIN] // Show Trainers and Admins
+            }
         },
         orderBy: [{ name: 'asc' }]
     });
