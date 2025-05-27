@@ -3,7 +3,7 @@
 
 import {useAuth}from '@/hooks/useAuth';
 import {useRouter}from 'next/navigation';
-import {useEffect, useState, useMemo} from 'react';
+import {useEffect, useState, useMemo, useCallback}from 'react';
 import { format } from 'date-fns';
 import {
   Card,
@@ -26,16 +26,17 @@ import {Input}from "@/components/ui/input";
 import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogClose, DialogFooter} from "@/components/ui/dialog";
 import {Label}from "@/components/ui/label";
 import {Textarea}from "@/components/ui/textarea";
-import type {Trainer, TrainerRoleString}from "@/actions/trainer"; // Use type for better safety
+import type {Trainer}from "@/actions/trainer";
+import { AdminRoleString, AdminRoles } from '@/types/roles';
 import type {User}from "@/actions/user";
 import { UserStatus, type UserStatusString } from "@/types/user";
-import {Plus, Edit, Trash2, FileText, History, UserPlus, ImagePlus, CheckSquare, TrendingUp, EyeOff } from "lucide-react"; // Removed RotateCcw, ensure EyeOff is used for deactivate
+import {Plus, Edit, Trash2, FileText, History, UserPlus, ImagePlus, CheckSquare, TrendingUp, EyeOff, ShieldAlert } from "lucide-react";
 import {cn}from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue}from "@/components/ui/select";
-import {getUsers, createUser, updateUserStatus, deleteUser as softDeleteUserAction} from '@/actions/user';
-import { getTrainers, createTrainer, updateTrainer, deleteTrainer as softDeleteTrainerAction } from '@/actions/trainer';
+import {getUsers, createUser, updateUserStatus, deleteUser as softDeleteUserAction}from '@/actions/user';
+import { getManageableAccounts, createTrainer, updateTrainer, deleteTrainer as softDeleteTrainerAction, getTrainersForPublicListing } from '@/actions/trainer';
 import { getInvoices, createInvoice, markInvoiceAsPaid, deleteInvoice as softDeleteInvoiceAction, Invoice } from '@/actions/invoice';
 import { getCarouselImages, addCarouselImage, deleteCarouselImage, updateCarouselImageOrder, CarouselImage } from '@/actions/carousel';
 import { useToast } from '@/hooks/use-toast';
@@ -61,7 +62,7 @@ const AdminPage = () => {
   const router = useRouter();
   const { toast } = useToast();
   const [users, setUsers] = useState<User[]>([]);
-  const [trainers, setTrainers] = useState<Trainer[]>([]);
+  const [trainersAndAdmins, setTrainersAndAdmins] = useState<Trainer[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [carouselImages, setCarouselImages] = useState<CarouselImage[]>([]);
 
@@ -74,7 +75,7 @@ const AdminPage = () => {
   const [trainerEmail, setTrainerEmail] = useState('');
   const [trainerPassword, setTrainerPassword] = useState('');
   const [trainerPhoneNumber, setTrainerPhoneNumber] = useState('');
-  const [trainerRole, setTrainerRole] = useState<TrainerRoleString>('trainer');
+  const [trainerRole, setTrainerRole] = useState<AdminRoleString>(AdminRoles.TRAINER);
   const [trainerBio, setTrainerBio] = useState('');
 
   const [openInvoiceDialog, setOpenInvoiceDialog] = useState(false);
@@ -104,38 +105,44 @@ const AdminPage = () => {
 
 
   useEffect(() => {
-    if (!isAuthLoading && (!user || user.role !== 'admin')) {
+    if (!isAuthLoading && (!user || (user.role !== AdminRoles.ADMIN && user.role !== AdminRoles.IT_ADMIN))) {
       router.push('/login');
     }
   }, [user, isAuthLoading, router]);
 
-  useEffect(() => {
-    if (user?.role === 'admin') {
-        const fetchData = async () => {
-            setIsLoadingData(true);
-            try {
-                const [userList, trainerList, invoiceList, imageList] = await Promise.all([
-                    getUsers(),
-                    getTrainers(),
-                    getInvoices(),
-                    getCarouselImages()
-                ]);
-                // Server actions should already filter by isActive: true.
-                // Client-side filtering is an additional safeguard for display.
-                setUsers(userList.filter(u => u.isActive));
-                setTrainers(trainerList.filter(t => t.isActive));
-                setInvoices(invoiceList.filter(i => i.isActive));
-                setCarouselImages(imageList.filter(img => img.isActive).sort((a, b) => a.position - b.position));
-            } catch (error) {
-                console.error("Error fetching admin data:", error);
-                toast({ title: "Error", description: "Failed to load dashboard data.", variant: "destructive" });
-            } finally {
-                setIsLoadingData(false);
-            }
-        };
-        fetchData();
+  const loggedInUserRole = user?.role as AdminRoleString | undefined;
+
+  const fetchAdminData = useCallback(async () => {
+    if (!loggedInUserRole || (loggedInUserRole !== AdminRoles.ADMIN && loggedInUserRole !== AdminRoles.IT_ADMIN)) {
+        setIsLoadingData(false);
+        return;
     }
-  }, [user]); // Removed toast from dependency array
+    setIsLoadingData(true);
+    try {
+        const [userList, manageableAccountsList, invoiceList, imageList] = await Promise.all([
+            getUsers(),
+            getManageableAccounts(loggedInUserRole),
+            getInvoices(),
+            getCarouselImages()
+        ]);
+        setUsers(userList.filter(u => u.isActive));
+        setTrainersAndAdmins(manageableAccountsList.filter(t => t.isActive));
+        setInvoices(invoiceList.filter(i => i.isActive));
+        setCarouselImages(imageList.filter(img => img.isActive).sort((a, b) => a.position - b.position));
+    } catch (error) {
+        console.error("Error fetching admin data:", error);
+        toast({ title: "Error", description: "Failed to load dashboard data.", variant: "destructive" });
+    } finally {
+        setIsLoadingData(false);
+    }
+  }, [loggedInUserRole, toast]);
+
+
+  useEffect(() => {
+    if (user?.role === AdminRoles.ADMIN || user?.role === AdminRoles.IT_ADMIN) {
+        fetchAdminData();
+    }
+  }, [user, fetchAdminData]);
 
 
    const monthlyEarningsData = useMemo(() => {
@@ -154,17 +161,50 @@ const AdminPage = () => {
       .sort((a, b) => a.month.localeCompare(b.month));
 
     return sortedEarnings.map(item => ({
-      month: format(new Date(item.month + '-01T00:00:00'), 'MMM yyyy'), // Ensure proper date object for formatting
+      month: format(new Date(item.month + '-01T00:00:00'), 'MMM yyyy'),
       total: item.total,
     }));
   }, [invoices]);
+
+  const handleOnDragEnd = useCallback(async (result: DropResult) => {
+    if (!result.destination) return;
+
+    const items = Array.from(carouselImages);
+    const [reorderedItem] = items.splice(result.source.index, 1);
+    items.splice(result.destination.index, 0, reorderedItem);
+
+    const newOrder = items.map((item, index) => ({
+        id: item.id,
+        position: index + 1
+    }));
+
+    const originalImages = [...carouselImages];
+    setCarouselImages(items.map((item, index)=> ({...item, position: index + 1})));
+
+    try {
+        const updateResult = await updateCarouselImageOrder(newOrder);
+        if (!updateResult.success) {
+            setCarouselImages(originalImages);
+            throw new Error(updateResult.error || "Failed to update image order.");
+        }
+         toast({ title: "Success", description: "Image order updated." });
+         // Re-fetch to ensure server state is perfectly aligned after optimistic update
+         const updatedImageList = await getCarouselImages();
+         setCarouselImages(updatedImageList.filter(img => img.isActive).sort((a,b) => a.position - b.position));
+
+    } catch (error: any) {
+        console.error("Error updating carousel order:", error);
+        toast({ title: "Error", description: error.message || "Could not update image order.", variant: "destructive" });
+        setCarouselImages(originalImages);
+    }
+  }, [carouselImages, toast]);
 
 
   if (isAuthLoading || isLoadingData || !user) {
     return <div className="container mx-auto py-10 text-center">Loading Admin Dashboard...</div>;
   }
 
-  if (user.role !== 'admin') {
+  if (user.role !== AdminRoles.ADMIN && user.role !== AdminRoles.IT_ADMIN) {
     return <div className="container mx-auto py-10">Unauthorized Access</div>;
   }
 
@@ -176,23 +216,27 @@ const AdminPage = () => {
     setTrainerExperience(trainerToEdit?.experience.toString() || '');
     setTrainerSchedule(trainerToEdit?.schedule || '');
     setTrainerEmail(trainerToEdit?.email || '');
-    setTrainerPassword(''); // Always clear password for edit dialog
+    setTrainerPassword('');
     setTrainerPhoneNumber(trainerToEdit?.phoneNumber || '');
-    setTrainerRole(trainerToEdit?.role as TrainerRoleString || 'trainer');
+    setTrainerRole(trainerToEdit?.role as AdminRoleString || AdminRoles.TRAINER);
     setTrainerBio(trainerToEdit?.bio || '');
     setOpenTrainerDialog(true);
   };
 
 
   const handleSaveTrainer = async () => {
+    if (!loggedInUserRole) {
+        toast({ title: "Error", description: "User role not identified.", variant: "destructive" });
+        return;
+    }
     const experienceNum = parseInt(trainerExperience);
-    if (isNaN(experienceNum) || experienceNum < 0) { // Add check for negative experience
+    if (isNaN(experienceNum) || experienceNum < 0) {
         toast({ title: "Error", description: "Experience must be a non-negative number.", variant: "destructive" });
         return;
     }
 
     if (!trainerName || !trainerSpecialization || !trainerEmail || (!editingTrainer && !trainerPassword) || !trainerRole || !trainerSchedule) {
-         toast({ title: "Error", description: "Please fill in all required trainer/admin fields (Name, Email, Specialization, Experience, Schedule, Role, and Password for new ones).", variant: "destructive" });
+         toast({ title: "Error", description: "Please fill in all required trainer/admin fields.", variant: "destructive" });
         return;
     }
 
@@ -202,7 +246,6 @@ const AdminPage = () => {
       experience: experienceNum,
       schedule: trainerSchedule,
       email: trainerEmail,
-      // Password will be handled conditionally below
       phoneNumber: trainerPhoneNumber || undefined,
       role: trainerRole,
       bio: trainerBio || undefined,
@@ -213,55 +256,55 @@ const AdminPage = () => {
         if (editingTrainer) {
              result = await updateTrainer(editingTrainer.id, {
                  ...trainerData,
-                 // Only send password if it's not empty
                  password: trainerPassword.trim() ? trainerPassword.trim() : undefined
-             });
+             }, loggedInUserRole);
              if (result.success && result.data?.trainer) {
-                // Update the trainer in the list, ensuring isActive status from response
-                setTrainers(trainers.map(t => t.id === result.data!.trainer!.id ? result.data!.trainer! : t).filter(t => t.isActive));
-                toast({ title: "Success", description: "Trainer/Admin updated successfully." });
+                setTrainersAndAdmins(prev => prev.map(t => t.id === result.data!.trainer!.id ? result.data!.trainer! : t).filter(t => t.isActive));
+                toast({ title: "Success", description: "Account updated successfully." });
             } else {
-                throw new Error(result.error || "Failed to update trainer/admin");
+                throw new Error(result.error || "Failed to update account");
             }
         } else {
-            if (!trainerPassword.trim()) { // Ensure password is not just spaces for new trainer
-                toast({ title: "Error", description: "Password is required for new trainers/admins.", variant: "destructive" });
+            if (!trainerPassword.trim()) {
+                toast({ title: "Error", description: "Password is required for new accounts.", variant: "destructive" });
                 return;
             }
-             result = await createTrainer({ ...trainerData, password: trainerPassword.trim() });
+             result = await createTrainer({ ...trainerData, password: trainerPassword.trim() }, loggedInUserRole);
              if (result.success && result.data?.trainer) {
-                // Add the new trainer to the list, assuming it's active
-                setTrainers([...trainers, result.data.trainer].filter(t => t.isActive));
-                toast({ title: "Success", description: "Trainer/Admin added successfully." });
+                setTrainersAndAdmins(prev => [...prev, result.data!.trainer!].filter(t => t.isActive));
+                toast({ title: "Success", description: "Account added successfully." });
              } else {
-                 throw new Error(result.error || "Failed to add trainer/admin");
+                 throw new Error(result.error || "Failed to add account");
              }
         }
         setOpenTrainerDialog(false);
     } catch (error: any) {
-        console.error("Error saving trainer/admin:", error);
-        toast({ title: "Error", description: error.message || "Could not save trainer/admin.", variant: "destructive" });
+        console.error("Error saving account:", error);
+        toast({ title: "Error", description: error.message || "Could not save account.", variant: "destructive" });
     }
   };
 
   const handleSoftDeleteTrainer = async (trainerId: string) => {
-    if (!confirm("Are you sure you want to deactivate this trainer/admin? They will be hidden from active lists.")) {
+    if (!loggedInUserRole) {
+        toast({ title: "Error", description: "User role not identified.", variant: "destructive" });
+        return;
+    }
+    if (!confirm("Are you sure you want to deactivate this account? It will be hidden from active lists.")) {
         return;
     }
     try {
-        const result = await softDeleteTrainerAction(trainerId);
+        const result = await softDeleteTrainerAction(trainerId, loggedInUserRole);
         if (result.success) {
-            setTrainers(prevTrainers => prevTrainers.filter(t => t.id !== trainerId)); // Update local state
-            toast({ title: "Success", description: "Trainer/Admin deactivated successfully." });
+            setTrainersAndAdmins(prev => prev.filter(t => t.id !== trainerId));
+            toast({ title: "Success", description: "Account deactivated successfully." });
         } else {
-             throw new Error(result.error || "Failed to deactivate trainer/admin");
+             throw new Error(result.error || "Failed to deactivate account");
         }
     } catch (error: any) {
-        console.error("Error deactivating trainer/admin:", error);
-        toast({ title: "Error", description: error.message || "Could not deactivate trainer/admin.", variant: "destructive" });
+        console.error("Error deactivating account:", error);
+        toast({ title: "Error", description: error.message || "Could not deactivate account.", variant: "destructive" });
     }
   };
-
 
   const handleOpenInvoiceDialog = (user: User) => {
     setSelectedUserForInvoice(user);
@@ -300,13 +343,11 @@ const AdminPage = () => {
     }
   };
 
-
   const handleOpenMarkPaidDialog = (invoice: Invoice) => {
     setInvoiceToMarkPaid(invoice);
-    setPaymentDate(new Date().toISOString().split('T')[0]); // Default to today
+    setPaymentDate(new Date().toISOString().split('T')[0]);
     setOpenMarkPaidDialog(true);
   };
-
 
  const handleMarkAsPaid = async () => {
     if (!invoiceToMarkPaid || !paymentDate) {
@@ -330,7 +371,6 @@ const AdminPage = () => {
     }
   };
 
-
   const handleOpenPaymentHistory = (user: User) => {
     setSelectedUserPaymentHistory(user);
     setOpenPaymentHistoryDialog(true);
@@ -339,7 +379,6 @@ const AdminPage = () => {
   const getUnpaidInvoice = (userId: string): Invoice | undefined => {
     return invoices.find(invoice => invoice.userId === userId && !invoice.paid && invoice.isActive);
   };
-
 
   const handleOpenUserDialog = () => {
     setUserName('');
@@ -360,8 +399,8 @@ const AdminPage = () => {
         name: userName,
         email: userEmail,
         password: userPassword,
-        phoneNumber: userPhoneNumber || undefined,
-        status: UserStatus.ACTIVE as UserStatusString // Admin created users are active
+        phoneNumber: userPhoneNumber || null,
+        status: UserStatus.ACTIVE as UserStatusString
       });
 
       if (result.success && result.user) {
@@ -431,7 +470,6 @@ const AdminPage = () => {
     }
   };
 
-
   const handleOpenImageDialog = () => {
     setNewImageUrl('');
     setOpenImageDialog(true);
@@ -442,11 +480,9 @@ const AdminPage = () => {
        toast({ title: "Error", description: "Please enter a valid image URL.", variant: "destructive" });
        return;
     }
-
     try {
         const nextPosition = carouselImages.length > 0 ? Math.max(...carouselImages.map(img => img.position)) + 1 : 1;
-
-        const result = await addCarouselImage(newImageUrl, nextPosition); // Pass dataAiHint if needed
+        const result = await addCarouselImage(newImageUrl, nextPosition);
         if (result.success && result.data?.image) {
              const updatedImages = [...carouselImages, result.data.image].sort((a, b) => a.position - b.position);
              setCarouselImages(updatedImages.filter(img => img.isActive));
@@ -466,10 +502,8 @@ const AdminPage = () => {
       return;
     }
      try {
-        const result = await deleteCarouselImage(imageId); // This should be a soft delete if implemented
+        const result = await deleteCarouselImage(imageId);
         if (result.success) {
-             // Assuming deleteCarouselImage is a soft delete and returns success
-             // The image list will be refetched or filtered based on isActive
              setCarouselImages(prevImages => prevImages.filter(img => img.id !== imageId).sort((a,b)=> a.position - b.position));
              toast({ title: "Success", description: "Image deleted successfully." });
         } else {
@@ -480,37 +514,6 @@ const AdminPage = () => {
           toast({ title: "Error", description: error.message || "Could not delete image.", variant: "destructive" });
      }
   };
-
- const handleOnDragEnd = async (result: DropResult) => {
-    if (!result.destination) return;
-
-    const items = Array.from(carouselImages);
-    const [reorderedItem] = items.splice(result.source.index, 1);
-    items.splice(result.destination.index, 0, reorderedItem);
-
-    const newOrder = items.map((item, index) => ({
-        id: item.id,
-        position: index + 1
-    }));
-
-    // Optimistically update UI
-    setCarouselImages(items.map((item, index)=> ({...item, position: index+1})));
-
-    try {
-        const updateResult = await updateCarouselImageOrder(newOrder);
-        if (!updateResult.success) {
-            // Revert UI on failure
-            setCarouselImages(carouselImages); // Revert to original order
-            throw new Error(updateResult.error || "Failed to update image order.");
-        }
-         toast({ title: "Success", description: "Image order updated." });
-    } catch (error: any) {
-        console.error("Error updating carousel order:", error);
-        toast({ title: "Error", description: error.message || "Could not update image order.", variant: "destructive" });
-        setCarouselImages(carouselImages); // Revert to original order on error
-    }
-};
-
 
   return (
     <div className="container mx-auto py-10">
@@ -556,7 +559,6 @@ const AdminPage = () => {
            )}
          </CardContent>
       </Card>
-
 
       <Card className="mb-8 shadow-md">
         <CardHeader className="flex flex-row items-center justify-between">
@@ -634,11 +636,11 @@ const AdminPage = () => {
         <CardHeader className="flex flex-row items-center justify-between">
            <div>
              <CardTitle>Trainers & Admins</CardTitle>
-             <CardDescription>Manage active trainers and administrators.</CardDescription>
+             <CardDescription>Manage active trainer and admin accounts.</CardDescription>
            </div>
           <Button onClick={()=> handleOpenTrainerDialog()}>
               <Plus className="mr-2 h-4 w-4"/>
-              Add Trainer/Admin
+              Add Account
             </Button>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -657,36 +659,39 @@ const AdminPage = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-             {trainers.length === 0 && (
+             {trainersAndAdmins.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center text-muted-foreground">No active trainers or admins found.</TableCell>
+                  <TableCell colSpan={9} className="text-center text-muted-foreground">No active trainer or admin accounts found.</TableCell>
                 </TableRow>
               )}
-              {trainers.map((trainer) => (
-                <TableRow key={trainer.id}>
-                  <TableCell className="font-medium">{trainer.name}</TableCell>
-                  <TableCell>{trainer.specialization}</TableCell>
-                  <TableCell>{trainer.experience} years</TableCell>
-                  <TableCell>{trainer.schedule}</TableCell>
-                  <TableCell>{trainer.email}</TableCell>
-                  <TableCell>{trainer.phoneNumber || 'N/A'}</TableCell>
-                  <TableCell className="max-w-xs truncate" title={trainer.bio || ''}>{trainer.bio || 'N/A'}</TableCell>
+              {trainersAndAdmins.map((account) => (
+                <TableRow key={account.id}>
+                  <TableCell className="font-medium">{account.name}</TableCell>
+                  <TableCell>{account.specialization}</TableCell>
+                  <TableCell>{account.experience} years</TableCell>
+                  <TableCell>{account.schedule}</TableCell>
+                  <TableCell>{account.email}</TableCell>
+                  <TableCell>{account.phoneNumber || 'N/A'}</TableCell>
+                  <TableCell className="max-w-xs truncate" title={account.bio || ''}>{account.bio || 'N/A'}</TableCell>
                    <TableCell>
-                       <Badge variant={trainer.role === 'admin' ? 'destructive' : 'default'}>
-                           {trainer.role.charAt(0).toUpperCase() + trainer.role.slice(1)}
+                       <Badge variant={account.role === AdminRoles.ADMIN ? 'destructive' : (account.role === AdminRoles.IT_ADMIN ? 'outline' : 'default')}
+                              className={cn(account.role === AdminRoles.IT_ADMIN && "border-purple-500 text-purple-500")}>
+                           {account.role === AdminRoles.IT_ADMIN ? 'IT Admin' : account.role.charAt(0).toUpperCase() + account.role.slice(1)}
                        </Badge>
                    </TableCell>
                   <TableCell className="text-right space-x-2">
-                    <Button variant="secondary" size="sm" onClick={() => handleOpenTrainerDialog(trainer)}>
+                    <Button variant="secondary" size="sm" onClick={() => handleOpenTrainerDialog(account)}
+                       disabled={account.role === AdminRoles.IT_ADMIN && loggedInUserRole !== AdminRoles.IT_ADMIN}
+                       title={account.role === AdminRoles.IT_ADMIN && loggedInUserRole !== AdminRoles.IT_ADMIN ? "Only IT Admins can edit IT Admin accounts" : "Edit Account"}>
                       <Edit className="mr-1 h-4 w-4"/>
                       Edit
                     </Button>
                     <Button
                         variant="destructive"
                         size="sm"
-                        onClick={() => handleSoftDeleteTrainer(trainer.id)}
-                        disabled={user?.id === trainer.id && trainer.role === 'admin'}
-                        title={user?.id === trainer.id && trainer.role === 'admin' ? "Cannot deactivate your own admin account" : "Deactivate Trainer/Admin"}
+                        onClick={() => handleSoftDeleteTrainer(account.id)}
+                        disabled={(user?.id === account.id && (account.role === AdminRoles.ADMIN || account.role === AdminRoles.IT_ADMIN)) || (account.role === AdminRoles.IT_ADMIN && loggedInUserRole !== AdminRoles.IT_ADMIN) }
+                        title={user?.id === account.id ? "Cannot deactivate your own account" : (account.role === AdminRoles.IT_ADMIN && loggedInUserRole !== AdminRoles.IT_ADMIN ? "Only IT Admins can deactivate IT Admin accounts" : "Deactivate Account")}
                         >
                       <EyeOff className="mr-1 h-4 w-4"/>
                       Deactivate
@@ -727,15 +732,15 @@ const AdminPage = () => {
               )}
               {invoices.map((invoice) => {
                   const userInvoice = users.find(u => u.id === invoice.userId);
-                  const userName = userInvoice?.name || 'User N/A';
-                  const userEmail = userInvoice?.email || 'N/A';
+                  const userNameDisplay = userInvoice?.name || 'User N/A';
+                  const userEmailDisplay = userInvoice?.email || 'N/A';
                    const isUnpaid = !invoice.paid;
                    const isOverdue = isUnpaid && new Date(invoice.dueDate) < new Date() && !invoice.paid;
 
                   return (
                     <TableRow key={invoice.id} className={cn(isUnpaid && "text-destructive dark:text-red-400", isOverdue && "font-semibold")}>
-                     <TableCell>{userName} (ID: ...{invoice.userId.substring(invoice.userId.length - 6)})</TableCell>
-                     <TableCell>{userEmail}</TableCell>
+                     <TableCell>{userNameDisplay} (ID: ...{invoice.userId.substring(invoice.userId.length - 6)})</TableCell>
+                     <TableCell>{userEmailDisplay}</TableCell>
                       <TableCell>${invoice.amount.toFixed(2)}</TableCell>
                       <TableCell>{new Date(invoice.dueDate).toLocaleDateString()}</TableCell>
                       <TableCell>
@@ -781,7 +786,7 @@ const AdminPage = () => {
         <CardContent className="space-y-4">
           {isClient && (
             <DragDropContext onDragEnd={handleOnDragEnd}>
-              <Droppable droppableId="carouselImages">
+              <Droppable droppableId="carouselImages" isDropDisabled={false}>
                 {(provided) => (
                   <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-2">
                       {carouselImages.length === 0 && (
@@ -824,9 +829,9 @@ const AdminPage = () => {
       <Dialog open={openTrainerDialog} onOpenChange={setOpenTrainerDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editingTrainer ? "Edit Trainer/Admin" : "Add Trainer/Admin"}</DialogTitle>
+            <DialogTitle>{editingTrainer ? "Edit Account" : "Add Account"}</DialogTitle>
             <DialogDescription>
-              {editingTrainer ? "Update the details below." : "Create a new trainer or admin account."}
+              {editingTrainer ? "Update the account details below." : "Create a new trainer or admin account."}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
@@ -860,13 +865,19 @@ const AdminPage = () => {
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="trainerBio" className="text-right">Bio (Optional)</Label>
-              <Textarea id="trainerBio" value={trainerBio} onChange={(e) => setTrainerBio(e.target.value)} className="col-span-3" placeholder="Tell us a bit about this trainer/admin..."/>
+              <Textarea id="trainerBio" value={trainerBio} onChange={(e) => setTrainerBio(e.target.value)} className="col-span-3" placeholder="Tell us a bit about this account..."/>
             </div>
              <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="role" className="text-right">Role</Label>
-                <Select value={trainerRole} onValueChange={(value) => setTrainerRole(value as TrainerRoleString)} required>
+                <Select value={trainerRole} onValueChange={(value) => setTrainerRole(value as AdminRoleString)} required>
                     <SelectTrigger className="col-span-3"> <SelectValue placeholder="Select role" /> </SelectTrigger>
-                    <SelectContent> <SelectItem value="trainer">Trainer</SelectItem> <SelectItem value="admin">Admin</SelectItem> </SelectContent>
+                    <SelectContent>
+                        <SelectItem value={AdminRoles.TRAINER}>Trainer</SelectItem>
+                        <SelectItem value={AdminRoles.ADMIN}>Admin</SelectItem>
+                        {loggedInUserRole === AdminRoles.IT_ADMIN && (
+                             <SelectItem value={AdminRoles.IT_ADMIN}>IT Admin</SelectItem>
+                        )}
+                    </SelectContent>
               </Select>
             </div>
           </div>
@@ -919,7 +930,6 @@ const AdminPage = () => {
         </DialogContent>
       </Dialog>
 
-
       <Dialog open={openPaymentHistoryDialog} onOpenChange={setOpenPaymentHistoryDialog}>
         <DialogContent className="sm:max-w-[625px]">
           <DialogHeader>
@@ -939,7 +949,7 @@ const AdminPage = () => {
               </TableHeader>
               <TableBody>
                 {invoices
-                  .filter((invoice) => invoice.userId === selectedUserPaymentHistory?.id && invoice.paid && invoice.isActive) // Filter active paid invoices
+                  .filter((invoice) => invoice.userId === selectedUserPaymentHistory?.id && invoice.paid && invoice.isActive)
                   .sort((a, b) => new Date(b.paymentDate || 0).getTime() - new Date(a.paymentDate || 0).getTime())
                   .map((invoice) => (
                     <TableRow key={invoice.id}>
@@ -1016,3 +1026,5 @@ const AdminPage = () => {
 };
 
 export default AdminPage;
+
+    

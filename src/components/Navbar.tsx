@@ -100,7 +100,7 @@ export const Navbar = () => {
     <nav className="bg-secondary border-b border-border sticky top-0 z-50">
       <div className="container mx-auto px-4 h-16 flex justify-between items-center">
         <span className="font-bold text-lg text-primary cursor-pointer" onClick={() => router.push('/')}>
-          Fitness Hub
+          Gym Warriors
         </span>
 
         {/* Mobile Menu */}

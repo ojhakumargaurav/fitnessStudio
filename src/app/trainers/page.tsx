@@ -4,20 +4,20 @@
 import {useEffect, useState} from 'react';
 import {Card, CardContent, CardDescription, CardHeader, CardTitle} from '@/components/ui/card';
 import { Badge } from "@/components/ui/badge";
-import { getTrainers as fetchTrainersAction, Trainer } from '@/actions/trainer'; // Import server action and type
+import { getTrainersForPublicListing, Trainer } from '@/actions/trainer'; // Use getTrainersForPublicListing
+import { useToast } from "@/hooks/use-toast"; // Import toast
 
 const TrainersPage = () => {
-  const [trainers, setTrainers] = useState<Trainer[]>([]); // Use Trainer type
+  const [trainers, setTrainers] = useState<Trainer[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const { toast } = useToast(); // Initialize toast
 
   useEffect(() => {
     const fetchTrainers = async () => {
        setIsLoading(true);
       try {
-          // Use the imported server action
-          const trainerList = await fetchTrainersAction();
-          // The action now filters for isActive: true, so no need to filter here
-          setTrainers(trainerList);
+          const trainerList = await getTrainersForPublicListing(); // Call the updated action
+          setTrainers(trainerList); // Action already filters for active trainers with 'trainer' role
       } catch (error) {
           console.error("Failed to fetch trainers:", error);
           toast({ title: "Error", description: "Failed to load trainers.", variant: "destructive" });
@@ -27,7 +27,7 @@ const TrainersPage = () => {
     };
 
     fetchTrainers();
-  }, []);
+  }, [toast]); // Add toast to dependency array if it's used within useEffect directly
 
   if (isLoading) {
     return <div className="container mx-auto py-10 text-center">Loading trainers...</div>;
@@ -35,19 +35,20 @@ const TrainersPage = () => {
 
   return (
     <div className="container mx-auto py-10">
-      <h1 className="text-3xl font-bold mb-6 text-primary">Our Trainers & Admins</h1>
+      <h1 className="text-3xl font-bold mb-6 text-primary">Our Trainers</h1>
       <p className="text-muted-foreground mb-8">Meet our team of dedicated and active professionals.</p>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {trainers.length === 0 ? (
-            <p className="col-span-full text-center text-muted-foreground">No active trainers or admins found.</p>
+            <p className="col-span-full text-center text-muted-foreground">No active trainers found.</p>
         ) : (
-            trainers.map((trainer) => ( // trainer is already filtered to be active
+            trainers.map((trainer) => (
             <Card key={trainer.id} className="shadow-md">
                 <CardHeader>
                 <CardTitle className="flex justify-between items-center">
                     <span>{trainer.name}</span>
-                    <Badge variant={trainer.role === 'admin' ? 'destructive' : 'secondary'}>
-                        {trainer.role.charAt(0).toUpperCase() + trainer.role.slice(1)}
+                    {/* Trainers page should only show 'trainer' role, so badge might be redundant or styled differently */}
+                    <Badge variant={'secondary'}>
+                        Trainer
                     </Badge>
                 </CardTitle>
                  <CardDescription>
@@ -70,6 +71,3 @@ const TrainersPage = () => {
 };
 
 export default TrainersPage;
-
-// Toast import for error handling (if not already present globally)
-import { toast } from "@/hooks/use-toast";
