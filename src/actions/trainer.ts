@@ -17,14 +17,18 @@ interface ActionResult<T = null> {
 }
 
 /**
- * Fetches trainers for public listing (only 'trainer' role).
+ * Fetches trainers and admins for public listing.
+ * IT Admins are excluded from this list.
+ * Admins are included.
  */
 export async function getTrainersForPublicListing(): Promise<Trainer[]> {
   try {
     const trainers = await prisma.trainer.findMany({
-        where: { 
+        where: {
             isActive: true,
-            role: AdminRoles.TRAINER 
+            role: {
+                in: [AdminRoles.TRAINER, AdminRoles.ADMIN] // Show Trainers and Admins
+            }
         },
         orderBy: [{ name: 'asc' }]
     });
@@ -48,8 +52,6 @@ export async function getManageableAccounts(loggedInUserRole: AdminRoleString): 
         in: [AdminRoles.ADMIN, AdminRoles.TRAINER],
       };
     } else if (loggedInUserRole !== AdminRoles.IT_ADMIN) {
-      // If not IT_ADMIN or ADMIN, should not see any admin accounts (though this function is for admin dashboard)
-      // For safety, restrict to only trainers if role is unexpected, though UI should prevent this call.
       console.warn(`getManageableAccounts called with unexpected role: ${loggedInUserRole}. Defaulting to trainers only.`);
       whereClause.role = AdminRoles.TRAINER;
     }
@@ -80,10 +82,11 @@ interface CreateTrainerInput {
   schedule: string;
   phoneNumber?: string;
   bio?: string;
+  imageUrl?: string;
 }
 
 export async function createTrainer(data: CreateTrainerInput, loggedInUserRole: AdminRoleString): Promise<ActionResult<{ trainer: Trainer }>> {
-  const { name, email, password, role, specialization, experience, schedule, phoneNumber, bio } = data;
+  const { name, email, password, role, specialization, experience, schedule, phoneNumber, bio, imageUrl } = data;
 
   if (role === AdminRoles.IT_ADMIN && loggedInUserRole !== AdminRoles.IT_ADMIN) {
     return { success: false, error: 'Only IT Admins can create other IT Admins.' };
@@ -122,6 +125,7 @@ export async function createTrainer(data: CreateTrainerInput, loggedInUserRole: 
         schedule,
         phoneNumber: phoneNumber || null,
         bio: bio || null,
+        imageUrl: imageUrl || null,
         isActive: true,
       },
     });
@@ -147,6 +151,7 @@ interface UpdateTrainerInput {
   schedule?: string;
   phoneNumber?: string;
   bio?: string;
+  imageUrl?: string;
   isActive?: boolean;
 }
 
@@ -157,28 +162,25 @@ export async function updateTrainer(id: string, data: UpdateTrainerInput, logged
         return { success: false, error: 'Trainer/Admin not found.'};
     }
 
-    // Prevent regular admin from modifying an IT Admin or promoting to IT Admin
     if (trainerToUpdate.role === AdminRoles.IT_ADMIN && loggedInUserRole !== AdminRoles.IT_ADMIN) {
         return { success: false, error: 'Regular admins cannot modify IT Admin accounts.'};
     }
     if (data.role === AdminRoles.IT_ADMIN && loggedInUserRole !== AdminRoles.IT_ADMIN) {
         return { success: false, error: 'Only IT Admins can assign the IT Admin role.'};
     }
-    // Prevent admin from changing their own role if they are the one being updated, unless they are IT_ADMIN
-    if (trainerToUpdate.id === id && trainerToUpdate.role === AdminRoles.ADMIN && data.role && data.role !== AdminRoles.ADMIN && loggedInUserRole !== AdminRoles.IT_ADMIN) {
-       // This logic could be more complex (e.g. last admin check)
-       // For now, just prevent non-IT_ADMIN from changing an admin's role to non-admin
-       // if (data.role !== AdminRoles.ADMIN) return { success: false, error: 'Admins cannot change their own role to a non-admin role.'};
-    }
-
 
     const updateData: Partial<Omit<PrismaTrainer, 'id'|'createdAt'|'updatedAt'>> & { password?: string } = { ...data };
 
     if (data.password && data.password.trim() !== "") {
         updateData.password = await bcrypt.hash(data.password, 10);
     } else {
-        delete updateData.password;
+        delete updateData.password; // Ensure password is not updated if empty
     }
+
+    if (data.imageUrl === '') { // Handle empty string for imageUrl to set it to null
+      updateData.imageUrl = null;
+    }
+
 
     if (data.email && trainerToUpdate.email !== data.email) {
         const existingUser = await prisma.user.findUnique({ where: { email: data.email } });
@@ -222,7 +224,6 @@ export async function deleteTrainer(id: string, loggedInUserRole: AdminRoleStrin
     if (trainerToDelete.role === AdminRoles.IT_ADMIN && loggedInUserRole !== AdminRoles.IT_ADMIN) {
       return { success: false, error: 'Regular admins cannot deactivate IT Admin accounts.' };
     }
-    // Add check to prevent deactivating own IT_ADMIN account if it's the last one (more complex, defer for now)
 
     await prisma.trainer.update({
       where: { id },

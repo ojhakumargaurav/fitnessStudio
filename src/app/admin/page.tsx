@@ -27,7 +27,7 @@ import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Dia
 import {Label}from "@/components/ui/label";
 import {Textarea}from "@/components/ui/textarea";
 import type {Trainer}from "@/actions/trainer";
-import { AdminRoleString, AdminRoles } from '@/types/roles'; // Import new role types
+import { AdminRoleString, AdminRoles } from '@/types/roles';
 import type {User}from "@/actions/user";
 import { UserStatus, type UserStatusString } from "@/types/user";
 import {Plus, Edit, Trash2, FileText, History, UserPlus, ImagePlus, CheckSquare, TrendingUp, EyeOff, ShieldAlert } from "lucide-react";
@@ -36,7 +36,7 @@ import { Badge } from "@/components/ui/badge";
 import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue}from "@/components/ui/select";
 import {getUsers, createUser, updateUserStatus, deleteUser as softDeleteUserAction}from '@/actions/user';
-import { getManageableAccounts, createTrainer, updateTrainer, deleteTrainer as softDeleteTrainerAction, getTrainersForPublicListing } from '@/actions/trainer'; // Updated import
+import { getManageableAccounts, createTrainer, updateTrainer, deleteTrainer as softDeleteTrainerAction, getTrainersForPublicListing } from '@/actions/trainer';
 import { getInvoices, createInvoice, markInvoiceAsPaid, deleteInvoice as softDeleteInvoiceAction, Invoice } from '@/actions/invoice';
 import { getCarouselImages, addCarouselImage, deleteCarouselImage, updateCarouselImageOrder, CarouselImage } from '@/actions/carousel';
 import { useToast } from '@/hooks/use-toast';
@@ -62,7 +62,7 @@ const AdminPage = () => {
   const router = useRouter();
   const { toast } = useToast();
   const [users, setUsers] = useState<User[]>([]);
-  const [trainersAndAdmins, setTrainersAndAdmins] = useState<Trainer[]>([]); // Renamed for clarity
+  const [trainersAndAdmins, setTrainersAndAdmins] = useState<Trainer[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [carouselImages, setCarouselImages] = useState<CarouselImage[]>([]);
 
@@ -75,8 +75,9 @@ const AdminPage = () => {
   const [trainerEmail, setTrainerEmail] = useState('');
   const [trainerPassword, setTrainerPassword] = useState('');
   const [trainerPhoneNumber, setTrainerPhoneNumber] = useState('');
-  const [trainerRole, setTrainerRole] = useState<AdminRoleString>(AdminRoles.TRAINER); // Use AdminRoleString
+  const [trainerRole, setTrainerRole] = useState<AdminRoleString>(AdminRoles.TRAINER);
   const [trainerBio, setTrainerBio] = useState('');
+  const [trainerImageUrl, setTrainerImageUrl] = useState('');
 
   const [openInvoiceDialog, setOpenInvoiceDialog] = useState(false);
   const [selectedUserForInvoice, setSelectedUserForInvoice] = useState<User | null>(null);
@@ -103,13 +104,6 @@ const AdminPage = () => {
     setIsClient(true);
   }, []);
 
-
-  useEffect(() => {
-    if (!isAuthLoading && (!user || (user.role !== AdminRoles.ADMIN && user.role !== AdminRoles.IT_ADMIN))) { // Check for both admin roles
-      router.push('/login');
-    }
-  }, [user, isAuthLoading, router]);
-
   const loggedInUserRole = user?.role as AdminRoleString | undefined;
 
   const fetchAdminData = useCallback(async () => {
@@ -121,12 +115,12 @@ const AdminPage = () => {
     try {
         const [userList, manageableAccountsList, invoiceList, imageList] = await Promise.all([
             getUsers(),
-            getManageableAccounts(loggedInUserRole), // Use new action
+            getManageableAccounts(loggedInUserRole),
             getInvoices(),
             getCarouselImages()
         ]);
         setUsers(userList.filter(u => u.isActive));
-        setTrainersAndAdmins(manageableAccountsList); // Already filtered by isActive in action
+        setTrainersAndAdmins(manageableAccountsList.filter(t => t.isActive));
         setInvoices(invoiceList.filter(i => i.isActive));
         setCarouselImages(imageList.filter(img => img.isActive).sort((a, b) => a.position - b.position));
     } catch (error) {
@@ -143,6 +137,49 @@ const AdminPage = () => {
         fetchAdminData();
     }
   }, [user, fetchAdminData]);
+
+  const handleOnDragEnd = useCallback(async (result: DropResult) => {
+    if (!result.destination) return;
+
+    const items = Array.from(carouselImages);
+    const [reorderedItem] = items.splice(result.source.index, 1);
+    items.splice(result.destination.index, 0, reorderedItem);
+
+    const newOrder = items.map((item, index) => ({
+        id: item.id,
+        position: index + 1
+    }));
+
+    const originalImages = [...carouselImages];
+    setCarouselImages(items.map((item, index)=> ({...item, position: index + 1}))); // Optimistic update
+
+    try {
+        const updateResult = await updateCarouselImageOrder(newOrder);
+        if (!updateResult.success) {
+            setCarouselImages(originalImages); // Revert on failure
+            throw new Error(updateResult.error || "Failed to update image order.");
+        }
+         toast({ title: "Success", description: "Image order updated." });
+         // Re-fetch to ensure server state is perfectly aligned
+         const updatedImageList = await getCarouselImages();
+         setCarouselImages(updatedImageList.filter(img => img.isActive).sort((a,b) => a.position - b.position));
+
+    } catch (error: any) {
+        console.error("Error updating carousel order:", error);
+        toast({ title: "Error", description: error.message || "Could not update image order.", variant: "destructive" });
+        setCarouselImages(originalImages); // Revert on error
+         // Consider re-fetching here as well if the optimistic update was complex
+         const currentImageList = await getCarouselImages();
+         setCarouselImages(currentImageList.filter(img => img.isActive).sort((a,b) => a.position - b.position));
+    }
+  }, [carouselImages, toast]);
+
+
+  useEffect(() => {
+    if (!isAuthLoading && (!user || (user.role !== AdminRoles.ADMIN && user.role !== AdminRoles.IT_ADMIN))) {
+      router.push('/login');
+    }
+  }, [user, isAuthLoading, router]);
 
 
    const monthlyEarningsData = useMemo(() => {
@@ -172,7 +209,10 @@ const AdminPage = () => {
   }
 
   if (user.role !== AdminRoles.ADMIN && user.role !== AdminRoles.IT_ADMIN) {
-    return <div className="container mx-auto py-10">Unauthorized Access</div>;
+    // This check should ideally happen after hooks if possible, or hooks should be moved up.
+    // For simplicity with current structure, this is okay, but be mindful of Rules of Hooks.
+    router.push('/login'); // Redirect if not authorized
+    return <div className="container mx-auto py-10 text-center">Redirecting...</div>;
   }
 
 
@@ -187,6 +227,7 @@ const AdminPage = () => {
     setTrainerPhoneNumber(trainerToEdit?.phoneNumber || '');
     setTrainerRole(trainerToEdit?.role as AdminRoleString || AdminRoles.TRAINER);
     setTrainerBio(trainerToEdit?.bio || '');
+    setTrainerImageUrl(trainerToEdit?.imageUrl || '');
     setOpenTrainerDialog(true);
   };
 
@@ -207,15 +248,16 @@ const AdminPage = () => {
         return;
     }
 
-    const trainerData: Parameters<typeof createTrainer>[0] = { // Use Parameters type for safety
+    const trainerData = {
       name: trainerName,
       specialization: trainerSpecialization,
       experience: experienceNum,
       schedule: trainerSchedule,
       email: trainerEmail,
       phoneNumber: trainerPhoneNumber || undefined,
-      role: trainerRole, // trainerRole state is AdminRoleString
+      role: trainerRole,
       bio: trainerBio || undefined,
+      imageUrl: trainerImageUrl || undefined,
     };
 
     try {
@@ -366,8 +408,8 @@ const AdminPage = () => {
         name: userName,
         email: userEmail,
         password: userPassword,
-        phoneNumber: userPhoneNumber || undefined,
-        status: UserStatus.ACTIVE as UserStatusString
+        phoneNumber: userPhoneNumber || null,
+        status: UserStatus.ACTIVE as UserStatusString // New users created by admin are active
       });
 
       if (result.success && result.user) {
@@ -481,39 +523,6 @@ const AdminPage = () => {
           toast({ title: "Error", description: error.message || "Could not delete image.", variant: "destructive" });
      }
   };
-
-  const handleOnDragEnd = useCallback(async (result: DropResult) => {
-    if (!result.destination) return;
-
-    const items = Array.from(carouselImages);
-    const [reorderedItem] = items.splice(result.source.index, 1);
-    items.splice(result.destination.index, 0, reorderedItem);
-
-    const newOrder = items.map((item, index) => ({
-        id: item.id,
-        position: index + 1
-    }));
-
-    const originalImages = [...carouselImages]; // Keep a copy for potential revert
-    setCarouselImages(items.map((item, index)=> ({...item, position: index+1}))); // Optimistic UI update
-
-    try {
-        const updateResult = await updateCarouselImageOrder(newOrder);
-        if (!updateResult.success) {
-            setCarouselImages(originalImages); // Revert UI on failure
-            throw new Error(updateResult.error || "Failed to update image order.");
-        }
-         toast({ title: "Success", description: "Image order updated." });
-         // Optionally re-fetch to confirm server state, though optimistic update should be fine
-         // const updatedImageList = await getCarouselImages();
-         // setCarouselImages(updatedImageList.filter(img => img.isActive).sort((a,b) => a.position - b.position));
-    } catch (error: any) {
-        console.error("Error updating carousel order:", error);
-        toast({ title: "Error", description: error.message || "Could not update image order.", variant: "destructive" });
-        setCarouselImages(originalImages); // Revert UI
-    }
-}, [carouselImages, toast]);
-
 
   return (
     <div className="container mx-auto py-10">
@@ -866,6 +875,10 @@ const AdminPage = () => {
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="trainerBio" className="text-right">Bio (Optional)</Label>
               <Textarea id="trainerBio" value={trainerBio} onChange={(e) => setTrainerBio(e.target.value)} className="col-span-3" placeholder="Tell us a bit about this account..."/>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="trainerImageUrl" className="text-right">Image URL (Optional)</Label>
+              <Input id="trainerImageUrl" type="url" value={trainerImageUrl} onChange={(e) => setTrainerImageUrl(e.target.value)} className="col-span-3" placeholder="https://example.com/image.png"/>
             </div>
              <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="role" className="text-right">Role</Label>

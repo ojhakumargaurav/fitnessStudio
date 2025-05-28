@@ -27,6 +27,7 @@ async function main() {
       schedule: 'On-call',
       phoneNumber: '000-000-0000',
       bio: 'Manages the IT systems for Fitness Hub.',
+      imageUrl: 'https://placehold.co/400x400.png',
       isActive: true,
     },
   });
@@ -39,7 +40,7 @@ async function main() {
 
   const admin = await prisma.trainer.upsert({
     where: { email: adminEmail },
-    update: {isActive: true, role: AdminRoles.ADMIN}, // Ensure admin is active if already exists
+    update: {isActive: true, role: AdminRoles.ADMIN},
     create: {
       name: 'Gaurav Ojha',
       email: adminEmail,
@@ -50,6 +51,7 @@ async function main() {
       schedule: 'Always available',
       phoneNumber: '123-456-7890',
       bio: 'Oversees site operations and user management.',
+      imageUrl: 'https://placehold.co/400x400.png',
       isActive: true,
     },
   });
@@ -71,6 +73,7 @@ async function main() {
       schedule: 'Mon, Wed, Fri 8am-12pm',
       phoneNumber: '555-111-2222',
       bio: 'Alice is a certified Yoga instructor with a passion for helping others find balance and peace through mindful movement.',
+      imageUrl: 'https://placehold.co/400x400.png',
       isActive: true,
     },
   });
@@ -92,6 +95,7 @@ async function main() {
       schedule: 'Tue, Thu 1pm-5pm, Sat 9am-1pm',
       phoneNumber: '555-333-4444',
       bio: 'Bob is an experienced strength coach focused on helping clients achieve their powerlifting and bodybuilding goals.',
+      imageUrl: 'https://placehold.co/400x400.png',
       isActive: true,
     },
   });
@@ -114,6 +118,7 @@ async function main() {
       schedule: 'Mon-Fri 5pm-9pm',
       phoneNumber: '555-555-6666',
       bio: 'Charlie specializes in high-intensity interval training (HIIT) and endurance running programs.',
+      imageUrl: 'https://placehold.co/400x400.png',
       isActive: true,
     },
   });
